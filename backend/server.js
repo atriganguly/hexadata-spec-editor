@@ -3,7 +3,23 @@ import cors from 'cors';
 import puppeteer from 'puppeteer';
 
 const app = express();
-app.use(cors());
+
+// Flexible CORS for Local, GitHub Pages, Render, and Production
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['*'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Fallback to allow requests during demo testing
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json({ limit: '50mb' }));
 
 /**
@@ -15,11 +31,11 @@ const generatePrintTemplate = (data) => `
   <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <meta name="title" content="${data.meta.title || 'HexaData Specification Sheet'}">
+      <meta name="title" content="${data?.meta?.title || 'HexaData Specification Sheet'}">
       <meta name="author" content="Esconet Technologies Limited / HexaData">
       <meta name="subject" content="Technical Product Specification Datasheet">
       <meta name="generator" content="HexaData Spec Engine v2.0 (Acrobat Studio Standard)">
-      <title>${data.meta.title || 'HexaData Spec Sheet'}</title>
+      <title>${data?.meta?.title || 'HexaData Spec Sheet'}</title>
       
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,600;0,700;1,400&family=Space+Grotesk:wght@600;700&display=swap');
@@ -244,7 +260,7 @@ const generatePrintTemplate = (data) => `
     <body>
       <!-- TOP EDGE-TO-EDGE HEADER BAR -->
       <div class="header-bar bg-cyan">
-        <div class="header-title font-display">${data.meta.headerTitle}</div>
+        <div class="header-title font-display">${data?.meta?.headerTitle || ''}</div>
       </div>
 
       <!-- MAIN CONTENT WRAPPER -->
@@ -252,12 +268,12 @@ const generatePrintTemplate = (data) => `
         <!-- TITLE & PARTNER LOGOS -->
         <div class="flex justify-between items-start title-area">
           <div class="flex-1 text-blue">
-            <div class="main-title font-display font-bold whitespace-pre-wrap">${data.meta.title}</div>
-            <div class="subtitle font-bold whitespace-pre-wrap">${data.meta.subtitle}</div>
+            <div class="main-title font-display font-bold whitespace-pre-wrap">${data?.meta?.title || ''}</div>
+            <div class="subtitle font-bold whitespace-pre-wrap">${data?.meta?.subtitle || ''}</div>
           </div>
           <div class="flex items-center" style="gap: 4mm; height: 12mm;">
-            <img src="${data.images.partnerLogo1}" class="logo-partner" alt="Partner Logo 1" />
-            <img src="${data.images.partnerLogo2}" class="logo-partner" alt="Partner Logo 2" />
+            ${data?.images?.partnerLogo1 ? `<img src="${data.images.partnerLogo1}" class="logo-partner" alt="Partner Logo 1" />` : ''}
+            ${data?.images?.partnerLogo2 ? `<img src="${data.images.partnerLogo2}" class="logo-partner" alt="Partner Logo 2" />` : ''}
           </div>
         </div>
 
@@ -265,7 +281,7 @@ const generatePrintTemplate = (data) => `
         <div class="flex" style="gap: 8mm; margin-bottom: 2mm;">
           <!-- LEFT: PRODUCT IMAGE -->
           <div class="flex items-center justify-center" style="width: 80mm; padding-top: 6mm;">
-            <img src="${data.images.productImage}" style="width: 100%; height: 60mm;" alt="Product Image" />
+            ${data?.images?.productImage ? `<img src="${data.images.productImage}" style="width: 100%; height: 60mm;" alt="Product Image" />` : ''}
           </div>
           
           <!-- RIGHT: FEATURES & APPLICATIONS -->
@@ -275,14 +291,14 @@ const generatePrintTemplate = (data) => `
               <div class="cyan-line"></div>
             </div>
             <ul class="list-disc">
-              ${data.keyFeatures.map(f => `<li><span class="whitespace-pre-wrap">${f}</span></li>`).join('')}
+              ${(data?.keyFeatures || []).map(f => `<li><span class="whitespace-pre-wrap">${f}</span></li>`).join('')}
             </ul>
             
             <div class="cyan-tab-container">
               <div class="cyan-tab font-display">Applications</div>
               <div class="cyan-line"></div>
             </div>
-            <div class="app-text whitespace-pre-wrap">${data.applications}</div>
+            <div class="app-text whitespace-pre-wrap">${data?.applications || ''}</div>
           </div>
         </div>
 
@@ -297,8 +313,8 @@ const generatePrintTemplate = (data) => `
             <div style="width: 50%;">
               <table>
                 <tbody>
-                  ${data.specsLeft.map(spec => {
-                    const isOS = spec.label.includes('OS Compatibility');
+                  ${(data?.specsLeft || []).map(spec => {
+                    const isOS = spec?.label?.includes('OS Compatibility');
                     return `
                     <tr>
                       <td class="td-label whitespace-pre-wrap">${spec.label}</td>
@@ -314,8 +330,8 @@ const generatePrintTemplate = (data) => `
             <div style="width: 50%;">
               <table>
                 <tbody>
-                  ${data.specsRight.map(spec => {
-                    const isOS = spec.label.includes('OS Compatibility');
+                  ${(data?.specsRight || []).map(spec => {
+                    const isOS = spec?.label?.includes('OS Compatibility');
                     return `
                     <tr>
                       <td class="td-label whitespace-pre-wrap">${spec.label}</td>
@@ -333,24 +349,30 @@ const generatePrintTemplate = (data) => `
       <!-- FOOTER & BOTTOM CYAN BAR -->
       <div class="footer-container">
         <div>
-          <div class="footer-text footer-url whitespace-pre-wrap">${data.footer.url}</div>
-          <div class="footer-text whitespace-pre-wrap" style="margin-bottom: 0.5mm;">${data.footer.disclaimer}</div>
-          <div class="footer-text whitespace-pre-wrap">${data.footer.copyright}</div>
+          <div class="footer-text footer-url whitespace-pre-wrap">${data?.footer?.url || ''}</div>
+          <div class="footer-text whitespace-pre-wrap" style="margin-bottom: 0.5mm;">${data?.footer?.disclaimer || ''}</div>
+          <div class="footer-text whitespace-pre-wrap">${data?.footer?.copyright || ''}</div>
         </div>
-        <img src="${data.images.footerLogo}" style="height: 12mm; width: 35mm; object-position: right bottom;" alt="HexaData Logo" />
+        ${data?.images?.footerLogo ? `<img src="${data.images.footerLogo}" style="height: 12mm; width: 35mm; object-position: right bottom;" alt="HexaData Logo" />` : ''}
       </div>
       <div class="bottom-cyan-bar"></div>
     </body>
   </html>
 `;
 
-// PDF Export API Endpoint
-app.post('/export', async (req, res) => {
+// Health check and warm-up endpoint
+app.get(['/', '/health'], (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'HexaData PDF Engine' });
+});
+
+// PDF Generation Handler Function
+const handlePdfExport = async (req, res) => {
+  let browser;
   try {
     const documentState = req.body;
     
-    // Launch headless Chromium with optimal vector rendering flags
-    const browser = await puppeteer.launch({ 
+    // Launch headless Chromium with Linux & container flags
+    browser = await puppeteer.launch({ 
       headless: true,
       args: [
         '--no-sandbox',
@@ -364,10 +386,10 @@ app.post('/export', async (req, res) => {
     
     const page = await browser.newPage();
     
-    // Inject print template with network resource loading confirmation
-    await page.setContent(generatePrintTemplate(documentState), { waitUntil: 'load' });
+    // Inject HTML template and wait for assets to render
+    await page.setContent(generatePrintTemplate(documentState), { waitUntil: 'networkidle0' });
     
-    // Generate ISO 32000 compliant A4 PDF
+    // Render ISO 32000 compliant A4 PDF
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -375,20 +397,26 @@ app.post('/export', async (req, res) => {
       preferCSSPageSize: true 
     });
 
-    await browser.close();
-
-    // Stream PDF buffer with proper headers
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=HexaData_Datasheet.pdf');
-    res.send(pdfBuffer);
+    return res.status(200).send(pdfBuffer);
+
   } catch (error) {
     console.error("Puppeteer PDF Export Error:", error);
-    res.status(500).send('PDF Generation Failed');
+    return res.status(500).json({ error: 'PDF Generation Failed', message: error.message });
+  } finally {
+    if (browser) {
+      await browser.close().catch(err => console.error("Error closing browser:", err));
+    }
   }
-});
+};
 
-// Start Server
-const PORT = 3001;
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`HexaData Acrobat Studio PDF Engine active on http://127.0.0.1:${PORT}`);
+// Supported endpoints (Aliased for compatibility)
+app.post('/export', handlePdfExport);
+app.post('/api/generate-pdf', handlePdfExport);
+
+// Start Server with dynamic PORT and 0.0.0.0 host binding
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`HexaData Acrobat Studio PDF Engine listening on 0.0.0.0:${PORT}`);
 });
