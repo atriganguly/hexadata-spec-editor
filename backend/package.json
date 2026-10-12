@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "start": "node server.js"
-	"postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@hexadata/shared": "*",
