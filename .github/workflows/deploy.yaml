@@ -10,24 +10,22 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Install & Build
-        run: |
-          npm install
-          npm run build
+      - name: Install All Dependencies (Root & Workspaces)
+        run: npm install
+
+      - name: Build Frontend
+        run: npm run build --prefix frontend
         env:
-          VITE_API_BASE_URL: https://hexadata-spec-editor.onrender.com/
+          VITE_API_BASE_URL: https://hexadata-spec-editor.onrender.com
 
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
