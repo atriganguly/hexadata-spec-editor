@@ -7,7 +7,8 @@
     "frontend"
   ],
   "scripts": {
-    "start": "npx concurrently \"npm run dev -w frontend\" \"npm run start -w backend\""
+    "start": "npx concurrently \"npm run dev -w frontend\" \"npm run start -w backend\"",
+    "setup": "npm install && npx puppeteer browsers install chrome"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
