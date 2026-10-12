@@ -3,6 +3,9 @@ import axios from 'axios';
 import { defaultDocumentState } from '@hexadata/shared';
 import React, { useRef, useEffect, useState } from 'react';
 
+// Dynamic API endpoint resolution (falls back to local dev port 3001)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3001';
+
 // --- 1. State Management Store ---
 const useStore = create((set) => ({
   data: defaultDocumentState,
@@ -103,7 +106,7 @@ export default function App() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const response = await axios.post('http://127.0.0.1:3001/export', data, { responseType: 'blob' });
+      const response = await axios.post(`${API_BASE_URL}/export`, data, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -112,7 +115,7 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
     } catch (error) {
-      alert("Export failed. Please ensure the backend server is running on port 3001.");
+      alert("Export failed. Please ensure the backend server is running.");
     }
     setIsExporting(false);
   };
@@ -149,11 +152,11 @@ export default function App() {
       <header className="h-14 px-6 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-2xl z-20">
         <div className="flex items-center gap-3">
           {/* Header Logo */}
-<img 
-  src="/favicon.png" 
-  alt="HexaData Icon" 
-  className="w-8 h-8 object-contain drop-shadow-[0_2px_8px_rgba(0,155,182,0.4)]" 
-/>
+          <img 
+            src={`${import.meta.env.BASE_URL}favicon.png`} 
+            alt="HexaData Icon" 
+            className="w-8 h-8 object-contain drop-shadow-[0_2px_8px_rgba(0,155,182,0.4)]" 
+          />
           <div>
             <h1 className="font-display font-bold text-sm text-white tracking-wide flex items-center gap-2">
               HexaData Spec Editor
