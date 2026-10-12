@@ -1,3 +1,116 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: #0d131f;
+    color: #F8FAFC;
+    font-family: 'Inter Tight', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* --- Liquid Glass UI Components --- */
+.glass-panel {
+  background: rgba(18, 30, 54, 0.65);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.glass-dock {
+  background: rgba(13, 19, 31, 0.72);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 15px rgba(255, 255, 255, 0.05);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.glass-button:active {
+  transform: translateY(0px);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.glass-button-primary {
+  background: linear-gradient(135deg, rgba(0, 155, 182, 0.9) 0%, rgba(4, 106, 167, 0.95) 100%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 155, 182, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-button-primary:hover {
+  background: linear-gradient(135deg, rgba(0, 175, 205, 0.95) 0%, rgba(4, 120, 185, 1) 100%);
+  box-shadow: 0 6px 25px rgba(0, 155, 182, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px) scale(1.02);
+}
+
+.glass-button-primary:active {
+  transform: translateY(0px) scale(0.98);
+  box-shadow: 0 2px 10px rgba(0, 155, 182, 0.3);
+}
+
+/* --- Custom Scrollbar for Studio Ambient Feel --- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(13, 19, 31, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  border: 2px solid rgba(13, 19, 31, 0.5);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 155, 182, 0.5);
+}
+
+/* --- ContentEditable Highlights & Formatting --- */
+[contenteditable]:focus {
+  outline: none;
+  background-color: rgba(254, 240, 138, 0.35) !important;
+  box-shadow: 0 0 0 2px rgba(0, 155, 182, 0.5);
+  border-radius: 2px;
+}
+
+[contenteditable]:hover {
+  background-color: rgba(254, 240, 138, 0.2);
+  border-radius: 2px;
+}
+
+/* --- Print Page Lock --- */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
