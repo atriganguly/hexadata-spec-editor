@@ -26,7 +26,17 @@ app.use(express.json({ limit: '50mb' }));
  * Generates ISO 32000 compliant, print-ready HTML for Puppeteer rendering.
  * Enforces exact 1:1 vector geometry, brand palette hex codes, and Google Fonts.
  */
-const generatePrintTemplate = (data) => `
+const generatePrintTemplate = (data) => {
+  // Support dynamic partnerLogos array with legacy fallbacks
+  const partnerLogos = Array.isArray(data?.images?.partnerLogos) && data.images.partnerLogos.length > 0
+    ? data.images.partnerLogos
+    : [data?.images?.partnerLogo1, data?.images?.partnerLogo2].filter(Boolean);
+
+  const partnerLogosHtml = partnerLogos
+    .map((logo, idx) => `<img src="${logo}" class="logo-partner" alt="Partner Logo ${idx + 1}" />`)
+    .join('');
+
+  return `
   <!DOCTYPE html>
   <html lang="en">
     <head>
@@ -213,15 +223,17 @@ const generatePrintTemplate = (data) => `
         }
         
         /* IMAGES & LOGOS */
-        img { 
-          max-width: 100%; 
-          object-fit: contain; 
-        }
-        
-        .logo-partner { 
-          height: 10mm; 
-          width: 30mm; 
-        }
+img { 
+  max-width: 100%; 
+  object-fit: contain; 
+}
+
+.logo-partner { 
+  height: 13.5mm; 
+  width: 13.5mm; 
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+}
         
         /* FOOTER & BOTTOM CYAN ACCENT BAR */
         .footer-container { 
@@ -271,10 +283,9 @@ const generatePrintTemplate = (data) => `
             <div class="main-title font-display font-bold whitespace-pre-wrap">${data?.meta?.title || ''}</div>
             <div class="subtitle font-bold whitespace-pre-wrap">${data?.meta?.subtitle || ''}</div>
           </div>
-          <div class="flex items-center" style="gap: 4mm; height: 12mm;">
-            ${data?.images?.partnerLogo1 ? `<img src="${data.images.partnerLogo1}" class="logo-partner" alt="Partner Logo 1" />` : ''}
-            ${data?.images?.partnerLogo2 ? `<img src="${data.images.partnerLogo2}" class="logo-partner" alt="Partner Logo 2" />` : ''}
-          </div>
+          <div class="flex items-center" style="gap: 2mm; height: 14mm; justify-content: flex-end; margin-left: auto;">
+  ${partnerLogosHtml}
+</div>
         </div>
 
         <!-- MIDDLE SECTION (PRODUCT IMAGE & KEY FEATURES) -->
@@ -353,12 +364,13 @@ const generatePrintTemplate = (data) => `
           <div class="footer-text whitespace-pre-wrap" style="margin-bottom: 0.5mm;">${data?.footer?.disclaimer || ''}</div>
           <div class="footer-text whitespace-pre-wrap">${data?.footer?.copyright || ''}</div>
         </div>
-        ${data?.images?.footerLogo ? `<img src="${data.images.footerLogo}" style="height: 12mm; width: 35mm; object-position: right bottom;" alt="HexaData Logo" />` : ''}
+        ${data?.images?.footerLogo ? `<img src="${data.images.footerLogo}" style="height: 40.5mm; width: 40.5mm; aspect-ratio: 1 / 1; object-position: right bottom; object-fit: contain; margin-bottom: -8mm;" alt="HexaData Logo" />` : ''}
       </div>
       <div class="bottom-cyan-bar"></div>
     </body>
   </html>
 `;
+};
 
 // Health check and warm-up endpoint
 app.get(['/', '/health'], (req, res) => {

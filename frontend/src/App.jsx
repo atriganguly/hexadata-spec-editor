@@ -6,6 +6,9 @@ import React, { useRef, useEffect, useState } from 'react';
 // Dynamic API endpoint resolution (falls back to local dev port 3001)
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:3001';
 
+// Default SVG placeholder for new partner logo additions
+const DEFAULT_PARTNER_LOGO_PLACEHOLDER = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNTAgNTAiPjx0ZXh0IHk9IjM1IiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiNhMGEwYTAiPlBhcnRuZXI8L3RleHQ+PC9zdmc+";
+
 // --- 1. State Management Store ---
 const useStore = create((set) => ({
   data: defaultDocumentState,
@@ -23,8 +26,12 @@ const useStore = create((set) => ({
     const keys = path.split('.');
     const newData = { ...state.data };
     let current = newData;
-    for (let i = 0; i < keys.length - 1; i++) current = current[keys[i]];
-    current[keys[keys.length - 1]] = [...current[keys[keys.length - 1]], newItem];
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
+      current = current[keys[i]];
+    }
+    const targetArray = current[keys[keys.length - 1]] || [];
+    current[keys[keys.length - 1]] = [...targetArray, newItem];
     return { data: newData };
   }),
 
@@ -33,7 +40,7 @@ const useStore = create((set) => ({
     const newData = { ...state.data };
     let current = newData;
     for (let i = 0; i < keys.length - 1; i++) current = current[keys[i]];
-    const array = [...current[keys[keys.length - 1]]];
+    const array = [...(current[keys[keys.length - 1]] || [])];
     array.splice(index, 1);
     current[keys[keys.length - 1]] = array;
     return { data: newData };
@@ -48,7 +55,7 @@ const Editable = ({ value, onChange, className }) => {
 
   useEffect(() => {
     if (contentEditableRef.current && contentEditableRef.current.innerHTML !== value) {
-      contentEditableRef.current.innerHTML = value;
+      contentEditableRef.current.innerHTML = value || '';
     }
   }, [value]);
 
@@ -66,7 +73,7 @@ const Editable = ({ value, onChange, className }) => {
       onBlur={handleBlur}
       className={`outline-none hover:bg-yellow-100/40 focus:bg-yellow-100/50 transition-colors cursor-text whitespace-pre-wrap ${className}`}
       style={{ minWidth: '1em' }}
-      dangerouslySetInnerHTML={{ __html: value }}
+      dangerouslySetInnerHTML={{ __html: value || '' }}
     />
   );
 };
@@ -101,6 +108,12 @@ export default function App() {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState(null);
+
+  // Fallback check to ensure partnerLogos array exists
+  const partnerLogos = data.images?.partnerLogos || [
+    data.images?.partnerLogo1,
+    data.images?.partnerLogo2
+  ].filter(Boolean);
 
   // PDF Export Handler
   const handleExport = async () => {
@@ -160,9 +173,9 @@ export default function App() {
           <div>
             <h1 className="font-display font-bold text-sm text-white tracking-wide flex items-center gap-2">
               HexaData Spec Editor
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30 uppercase tracking-wider">
-                Beta 1.0
-              </span>
+              <span className="inline-flex items-center justify-center text-[10px] font-mono leading-none px-2.5 py-1 rounded-full bg-brand-cyan/20 text-brand-cyan border border-brand-cyan/30 uppercase tracking-wider shrink-0">
+  Beta 1.0
+</span>
             </h1>
             <p className="text-[10px] text-brand-grey">Acrobat-compatible Vector PDF Editing</p>
           </div>
@@ -201,16 +214,42 @@ export default function App() {
             {/* INNER CONTENT WRAPPER */}
             <div className="px-[12mm] flex-1 flex flex-col">
               
-              {/* TITLE & LOGOS */}
+              {/* TITLE & PARTNER LOGOS */}
               <div className="flex justify-between items-start mt-[6mm] mb-[4mm]">
                 <div className="flex-1">
                   <Editable value={data.meta.title} onChange={(v) => updateField('meta.title', v)} className="font-bold font-display text-brand-blue text-[24pt] leading-none mb-1" />
                   <Editable value={data.meta.subtitle} onChange={(v) => updateField('meta.subtitle', v)} className="font-bold font-body text-brand-blue text-[10pt]" />
                 </div>
-                <div className="flex gap-[4mm] items-center h-[12mm]">
-                  <EditableImage value={data.images.partnerLogo1} onChange={(v) => updateField('images.partnerLogo1', v)} className="h-[10mm] w-[30mm]" />
-                  <EditableImage value={data.images.partnerLogo2} onChange={(v) => updateField('images.partnerLogo2', v)} className="h-[10mm] w-[30mm]" />
-                </div>
+                
+                {/* DYNAMIC PARTNER LOGOS CONTAINER */}
+<div className="relative group/partnerLogos flex items-center justify-end gap-[2mm] h-[14mm] ml-auto">
+  {/* ADD LOGO BUTTON (Positioned on left so logos remain anchored to right margin) */}
+  {partnerLogos.length < 4 && (
+    <button 
+      onClick={() => addArrayItem('images.partnerLogos', DEFAULT_PARTNER_LOGO_PLACEHOLDER)}
+      className="text-[9px] text-brand-cyan border border-dashed border-brand-cyan px-1.5 py-0.5 rounded opacity-0 group-hover/partnerLogos:opacity-100 transition-opacity bg-white z-10 hover:bg-gray-50 shadow-sm cursor-pointer whitespace-nowrap shrink-0 mr-[1mm]"
+      title="Add Partner Logo (Max 4)"
+    >
+      + Add Logo
+    </button>
+  )}
+
+  {/* LOGO MAP */}
+  {partnerLogos.map((logo, index) => (
+    <div key={index} className="relative group/logo flex items-center h-[13.5mm] w-[13.5mm] aspect-square shrink-0">
+      <button 
+        onClick={() => removeArrayItem('images.partnerLogos', index)}
+        className="absolute -top-1 -right-1 text-red-500 opacity-0 group-hover/logo:opacity-100 transition-opacity font-bold text-[11px] leading-none w-4 h-4 flex items-center justify-center z-20 bg-white hover:bg-red-50 rounded-full shadow-md border border-gray-200 cursor-pointer"
+        title="Remove Logo"
+      >×</button>
+      <EditableImage 
+        value={logo} 
+        onChange={(v) => updateField(`images.partnerLogos.${index}`, v)} 
+        className="h-[13.5mm] w-[13.5mm] aspect-square" 
+      />
+    </div>
+  ))}
+</div>
               </div>
 
               {/* MIDDLE SECTION */}
@@ -324,14 +363,18 @@ export default function App() {
             </div>
 
             {/* FOOTER */}
-            <div className="absolute bottom-[8mm] left-[12mm] right-[12mm] flex justify-between items-end">
-              <div className="text-[6.5pt] text-brand-grey font-body leading-[1.3]">
-                <Editable value={data.footer.url} onChange={(v) => updateField('footer.url', v)} className="text-brand-black font-bold block mb-[1mm]" />
-                <Editable value={data.footer.disclaimer} onChange={(v) => updateField('footer.disclaimer', v)} className="block mb-[0.5mm]" />
-                <Editable value={data.footer.copyright} onChange={(v) => updateField('footer.copyright', v)} className="block" />
-              </div>
-              <EditableImage value={data.images.footerLogo} onChange={(v) => updateField('images.footerLogo', v)} className="h-[12mm] w-[35mm] object-right-bottom" />
-            </div>
+<div className="absolute bottom-[8mm] left-[12mm] right-[12mm] flex justify-between items-end">
+  <div className="text-[6.5pt] text-brand-grey font-body leading-[1.3]">
+    <Editable value={data.footer.url} onChange={(v) => updateField('footer.url', v)} className="text-brand-black font-bold block mb-[1mm]" />
+    <Editable value={data.footer.disclaimer} onChange={(v) => updateField('footer.disclaimer', v)} className="block mb-[0.5mm]" />
+    <Editable value={data.footer.copyright} onChange={(v) => updateField('footer.copyright', v)} className="block" />
+  </div>
+  <EditableImage 
+    value={data.images.footerLogo} 
+    onChange={(v) => updateField('images.footerLogo', v)} 
+    className="h-[40.5mm] w-[40.5mm] aspect-square object-right-bottom shrink-0 mb-[-8mm]" 
+  />
+</div>
             
             {/* BOTTOM EDGE-TO-EDGE CYAN BAR */}
             <div className="absolute bottom-0 left-0 w-full bg-brand-cyan h-[4mm]"></div>
@@ -495,8 +538,8 @@ export default function App() {
                 <kbd className="px-2 py-1 bg-white/10 rounded font-mono text-xs text-white">Ctrl + U</kbd>
               </div>
               <div className="flex justify-between items-center bg-white/5 p-2.5 rounded-lg border border-white/5">
-                <span>Add / Delete Rows</span>
-                <span className="text-xs text-brand-cyan">Hover over lists or tables</span>
+                <span>Add / Delete Rows & Badges</span>
+                <span className="text-xs text-brand-cyan">Hover over canvas items</span>
               </div>
               <div className="flex justify-between items-center bg-white/5 p-2.5 rounded-lg border border-white/5">
                 <span>Replace Images</span>
