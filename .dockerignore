@@ -1,0 +1,21 @@
+# Keep the build context small and the layers cache-friendly.
+**/node_modules
+**/dist
+**/dev-dist
+.git
+.github
+.claude
+.cache
+coverage
+playwright-report
+test-results
+e2e
+docs
+*.md
+!README.md
+**/*.test.ts
+**/*.test.tsx
+**/test
+.env
+.env.*
+apps/web/public/brand

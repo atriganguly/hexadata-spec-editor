@@ -1,0 +1,16 @@
+{
+  "name": "@hexadata/spec-core",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Content model, rich text, validation, limits and migrations shared by the editor and the PDF renderer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "valibot": "^1.5.0"
+  }
+}

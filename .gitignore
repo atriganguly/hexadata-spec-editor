@@ -98,3 +98,13 @@ $RECYCLE.BIN/
 *~
 *.swp
 *.swo
+# =========================
+# PROJECT
+# =========================
+.cache/
+playwright-report/
+test-results/
+.env.*
+!.env.example
+*.tsbuildinfo
+apps/web/dev-dist/

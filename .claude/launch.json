@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "web",
+      "runtimeExecutable": "C:/Users/Atri Ganguly/AppData/Roaming/fnm/node-versions/v26.13.1/installation/node.exe",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "apps/web"],
+      "port": 5173
+    },
+    {
+      "name": "pdf-server",
+      "runtimeExecutable": "C:/Users/Atri Ganguly/AppData/Roaming/fnm/node-versions/v26.13.1/installation/node.exe",
+      "runtimeArgs": ["apps/pdf-server/dist/main.js"],
+      "port": 3001
+    }
+  ]
+}

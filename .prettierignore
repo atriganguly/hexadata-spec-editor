@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.cache
+playwright-report
+test-results
+package-lock.json
+vendor
+packages/templates/test/golden
+**/*.generated.*

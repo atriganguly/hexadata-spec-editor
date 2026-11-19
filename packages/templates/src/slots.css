@@ -1,0 +1,19 @@
+/*
+ * Shared slot styles. Included by every consumer (editor and PDF renderer) before the template's own CSS.
+ * Only behaviour that must be identical everywhere lives here.
+ */
+.rt {
+  white-space: pre-wrap;
+}
+
+.rt b {
+  font-weight: 700;
+}
+
+.rt i {
+  font-style: italic;
+}
+
+.rt u {
+  text-decoration: underline;
+}
