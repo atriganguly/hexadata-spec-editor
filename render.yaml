@@ -1,0 +1,34 @@
+# Render Blueprint: the PDF engine (Fastify + headless Chrome). The web app is hosted on GitHub Pages
+# (see .github/workflows/pages.yml). To host both from one service instead, use the Dockerfile.
+services:
+  - type: web
+    name: hexadata-spec-editor
+    runtime: node
+    plan: free
+    # Build: install, bundle the server, then download the lean headless Chrome into .cache/puppeteer
+    # (inside the project folder, so it is part of the deployed filesystem: see .puppeteerrc.cjs).
+    buildCommand: npm ci && npm run build -w @hexadata/spec-pdf-server && npx puppeteer browsers install chrome-headless-shell
+    startCommand: node apps/pdf-server/dist/main.js
+    healthCheckPath: /healthz
+    # Deploy only after the CI checks of the commit are green.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Exact origin(s) of the web app, comma separated. REQUIRED: the server refuses to start without it.
+      # e.g. https://atriganguly.github.io
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Render terminates TLS in front of the service: trust one proxy hop for the client IP (rate limiting).
+      - key: TRUST_PROXY
+        value: '1'
+      # 512 MB instance: one render at a time, short queue, restart Chrome regularly.
+      - key: RENDER_CONCURRENCY
+        value: '1'
+      - key: RENDER_QUEUE_MAX
+        value: '6'
+      - key: BROWSER_RECYCLE_AFTER
+        value: '100'
+      # Chrome's sandbox needs kernel features that containers do not grant.
+      - key: CHROME_NO_SANDBOX
+        value: '1'

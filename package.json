@@ -1,16 +1,60 @@
 {
   "name": "hexadata-spec-editor",
+  "version": "2.0.0",
   "private": true,
+  "type": "module",
+  "description": "HexaData Spec Editor: template-driven A4 spec-sheet editor with drafts and a hardened PDF renderer.",
+  "engines": {
+    "node": ">=24"
+  },
   "workspaces": [
-    "shared",
-    "backend",
-    "frontend"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
-    "start": "npx concurrently \"npm run dev -w frontend\" \"npm run start -w backend\"",
-    "setup": "npm install && npx puppeteer browsers install chrome"
+    "dev": "concurrently -n web,pdf -c auto \"npm run dev -w @hexadata/spec-web\" \"npm run dev -w @hexadata/spec-pdf-server\"",
+    "build": "npm run build -w @hexadata/spec-web && npm run build -w @hexadata/spec-pdf-server",
+    "start": "npm run start -w @hexadata/spec-pdf-server",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "budgets": "node scripts/check-budgets.mjs",
+    "browsers": "puppeteer browsers install chrome-headless-shell && playwright install chromium",
+    "brand:update": "node scripts/update-brand.mjs",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build && npm run budgets"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^9.39.0",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "@types/pngjs": "^6.0.5",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.14.0",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.5.438",
+    "pixelmatch": "^8.0.0",
+    "pngjs": "^7.0.0",
+    "prettier": "^3.10.1",
+    "sharp": "^0.35.5",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.1"
+  },
+  "allowScripts": {
+    "puppeteer": true,
+    "esbuild": true
+  },
+  "overrides": {
+    "workbox-build": {
+      "glob": "14.0.6"
+    }
   }
 }

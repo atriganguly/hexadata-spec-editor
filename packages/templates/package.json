@@ -1,0 +1,30 @@
+{
+  "name": "@hexadata/spec-templates",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Template registry and templates. One React component renders both the editor and the PDF.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./print": "./src/print.tsx",
+    "./assets/*": "./src/assets/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hexadata/spec-core": "*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@hexadata/brand": "file:../../vendor/hexadata-brand-2.1.1.tgz",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "vite": "^8.3.8"
+  }
+}

@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, build, e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies (also downloads the renderer's headless Chrome)
+        run: npm ci
+
+      - name: Install the browser for end-to-end tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Performance budgets
+        run: npm run budgets
+
+      - name: Production bundle smoke test
+        run: npm run smoke -w @hexadata/spec-pdf-server
+
+      - name: End-to-end tests (accessibility, drafts, export, editor/PDF parity)
+        run: npm run test:e2e
+        env:
+          CI: '1'
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t hexadata-spec-editor:ci .
+
+      - name: Run it and render a PDF
+        run: |
+          docker run -d --name app -p 8080:8080 hexadata-spec-editor:ci
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/readyz >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8080/healthz
+          curl -fsS http://127.0.0.1:8080/ | grep -q "HexaData Spec Editor"
+          printf '%s' '{"schemaVersion":1,"templateId":"classic","templateVersion":1,"content":{"meta":{"headerTitle":[],"title":[[{"t":"CI"}]],"subtitle":[]},"partnerLogos":[],"productImage":null,"keyFeatures":[],"applications":[],"specColumns":[[],[]],"footer":{"url":[],"disclaimer":[],"copyright":[]},"extras":{}}}' > doc.json
+          curl -fsS -X POST -H 'content-type: application/json' --data @doc.json http://127.0.0.1:8080/v1/render -o out.pdf
+          head -c 5 out.pdf | grep -q '%PDF-'
+          docker logs app
+
+      - name: Stop
+        if: always()
+        run: docker rm -f app || true
