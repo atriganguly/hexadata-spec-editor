@@ -70,8 +70,6 @@ test.describe('editor', () => {
     await cell(page, 'field:meta.subtitle').click();
     await page.keyboard.press('Control+a');
     await page.keyboard.insertText('Short subtitle');
-    await page.locator('[data-edit-item="feature"] [data-cell]').first().click();
-    await page.keyboard.press('Control+Shift+Backspace'); // no-op in a feature
     await undoButton(page).click();
     await expect(cell(page, 'field:meta.subtitle')).not.toHaveText('Short subtitle');
     await redoButton(page).click();

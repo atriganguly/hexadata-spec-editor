@@ -23,6 +23,7 @@ RUN --mount=type=cache,target=/root/.npm PUPPETEER_SKIP_DOWNLOAD=1 npm ci
 
 # ---------------------------------------------------------------- build web + server bundles
 FROM deps AS build
+COPY tsconfig.base.json ./
 COPY packages ./packages
 COPY apps ./apps
 COPY scripts ./scripts
