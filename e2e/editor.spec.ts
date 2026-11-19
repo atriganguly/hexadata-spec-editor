@@ -66,8 +66,10 @@ test.describe('editor', () => {
 
   test('undo and redo cover text and structure', async ({ page }) => {
     await openApp(page);
-    await replaceText(page, 'field:meta.subtitle', 'Short subtitle');
-    await page.getByRole('button', { name: 'New draft' }).first(); // keep focus semantics simple
+    // One insertText is one input event, so one history entry; typing key by key can span the coalescing window on a slow runner.
+    await cell(page, 'field:meta.subtitle').click();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.insertText('Short subtitle');
     await page.locator('[data-edit-item="feature"] [data-cell]').first().click();
     await page.keyboard.press('Control+Shift+Backspace'); // no-op in a feature
     await undoButton(page).click();
