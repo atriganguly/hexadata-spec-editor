@@ -405,7 +405,7 @@ kbd {
   border: 1px solid var(--hd-border-subtle);
   box-shadow: var(--hd-shadow-3);
   /* the printed sheet is always light paper, whatever the app theme */
-  --sheet-paper: white;
+  --sheet-paper: var(--hd-white);
   background: white;
 }
 
@@ -417,10 +417,12 @@ kbd {
   opacity: 0.85;
 }
 
+/* `--lz` is the sheet's layout scale (1, or 4 in a browser that enforces a minimum font size): chrome inside the
+   sheet is scaled by it so it keeps its on-screen size. */
 /* Editable cells. Same box model as print: only background and outline change. */
 .sheet-scale [contenteditable='true'] {
   cursor: text;
-  border-radius: var(--hd-radius-sm);
+  border-radius: calc(var(--hd-radius-sm) * var(--lz, 1));
   outline: none;
   transition: background-color var(--hd-duration-fast) var(--hd-ease-standard);
 }
@@ -429,10 +431,10 @@ kbd {
 }
 .sheet-scale [contenteditable='true']:focus {
   background-color: rgb(var(--hd-deep-blue-rgb) / 0.12);
-  box-shadow: 0 0 0 2px var(--hd-deep-blue);
+  box-shadow: 0 0 0 calc(2px * var(--lz, 1)) var(--hd-deep-blue);
 }
 .sheet-scale [contenteditable='true'][data-limit='true'] {
-  box-shadow: 0 0 0 2px var(--hd-crimson);
+  box-shadow: 0 0 0 calc(2px * var(--lz, 1)) var(--hd-crimson);
 }
 .sheet-scale [data-edit-image] {
   cursor: pointer;
@@ -440,22 +442,25 @@ kbd {
 .sheet-scale [data-edit-image][data-empty],
 .sheet-scale [data-edit-item='logo'][data-empty] {
   background: rgb(var(--hd-deep-blue-rgb) / 0.06);
-  outline: 1px dashed var(--hd-deep-blue);
-  outline-offset: -1px;
+  outline: calc(1px * var(--lz, 1)) dashed var(--hd-deep-blue);
+  outline-offset: calc(-1px * var(--lz, 1));
 }
 .sheet-scale [data-edit-image]:hover,
 .sheet-scale [data-edit-item='logo']:hover {
-  outline: 2px solid var(--hd-deep-blue);
-  outline-offset: -2px;
+  outline: calc(2px * var(--lz, 1)) solid var(--hd-deep-blue);
+  outline-offset: calc(-2px * var(--lz, 1));
 }
 .sheet-scale [data-selected='true'] {
-  outline: 2px solid var(--hd-deep-blue);
-  outline-offset: 1px;
+  outline: calc(2px * var(--lz, 1)) solid var(--hd-deep-blue);
+  outline-offset: calc(1px * var(--lz, 1));
 }
-/* Overflow: content that collides with the footer or leaves the page. */
-.sheet-scale [data-overflow='true'] {
-  outline: 2px dashed var(--hd-crimson);
-  outline-offset: 2px;
+/* Where one page ends and the next begins (drawn over the sheet; never part of its layout or of the PDF). */
+.page-break {
+  position: absolute;
+  inset-inline: 0;
+  block-size: 0;
+  border-block-start: 2px dashed var(--hd-border);
+  pointer-events: none;
 }
 
 /* Selected-item chrome and handles live in an overlay OUTSIDE the sheet so they never change its layout. */

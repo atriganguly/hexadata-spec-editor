@@ -48,3 +48,14 @@ export const undoButton = (page: Page) =>
   page.locator('.app-header').getByRole('button', { name: 'Undo' });
 export const redoButton = (page: Page) =>
   page.locator('.app-header').getByRole('button', { name: 'Redo' });
+
+const activeCell = (page: Page) =>
+  page.evaluate(() => document.activeElement?.getAttribute('data-cell') ?? '');
+
+/** Presses `key` (which moves focus to a NEW cell), waits until the caret has really moved, then types `text`. */
+export async function pressThenType(page: Page, key: string, text: string): Promise<void> {
+  const before = await activeCell(page);
+  await page.keyboard.press(key);
+  await expect.poll(() => activeCell(page)).not.toBe(before);
+  await page.keyboard.type(text);
+}

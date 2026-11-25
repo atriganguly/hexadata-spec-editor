@@ -100,7 +100,10 @@ export type ImageCheck = { ok: true; info: ImageInfo } | { ok: false; reason: st
 export function checkImage(bytes: Uint8Array): ImageCheck {
   if (bytes.byteLength === 0) return { ok: false, reason: 'The image is empty.' };
   if (bytes.byteLength > IMAGE_LIMITS.storedBytes) {
-    return { ok: false, reason: 'The image is larger than 5 MB.' };
+    return {
+      ok: false,
+      reason: `The image is larger than ${IMAGE_LIMITS.storedBytes / (1024 * 1024)} MB.`,
+    };
   }
   const info = readImageInfo(bytes);
   if (!info) return { ok: false, reason: 'Only PNG, JPEG and WebP images are supported.' };

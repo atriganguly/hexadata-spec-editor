@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { LIMITS } from '@hexadata/spec-core';
 import { getTemplateMeta } from '@hexadata/spec-templates';
 import { runtime } from '../app/runtime.ts';
 import { useSession } from '../drafts/session.ts';
@@ -55,8 +56,7 @@ function DraftCard({
       label: 'Download draft file',
       icon: <IconDownload />,
       onSelect: async () => {
-        if (!current) await session.open(meta.id);
-        const file = await session.exportCurrentDraft();
+        const file = await session.exportDraftById(meta.id);
         if (file)
           downloadBlob(
             new Blob([file.bytes as BlobPart], { type: 'application/zip' }),
@@ -79,7 +79,7 @@ function DraftCard({
           className="hd-input"
           aria-label="Draft name"
           value={value}
-          maxLength={120}
+          maxLength={LIMITS.draftName}
           // eslint-disable-next-line jsx-a11y/no-autofocus
           autoFocus
           onChange={(event) => setValue(event.target.value)}

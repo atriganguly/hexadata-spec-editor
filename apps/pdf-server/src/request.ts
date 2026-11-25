@@ -49,6 +49,9 @@ export async function readRenderRequest(req: FastifyRequest): Promise<ParsedRend
         if (typeof part.value !== 'string' || documentText !== undefined) {
           throw new HttpError(400, 'BAD_REQUEST', 'Send exactly one "document" text field.');
         }
+        if (part.valueTruncated) {
+          throw new HttpError(413, 'PAYLOAD_TOO_LARGE', 'The document is too large.');
+        }
         documentText = part.value;
         continue;
       }

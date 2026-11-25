@@ -42,13 +42,17 @@ const DB_VERSION = 1;
 
 export function openHexaDb(name = DB_NAME): Promise<IDBPDatabase<HexaDB>> {
   return openDB<HexaDB>(name, DB_VERSION, {
-    upgrade(db) {
-      const drafts = db.createObjectStore('drafts', { keyPath: 'id' });
-      drafts.createIndex('updatedAt', 'updatedAt');
-      drafts.createIndex('deletedAt', 'deletedAt');
-      db.createObjectStore('bodies', { keyPath: 'id' });
-      db.createObjectStore('assets', { keyPath: 'hash' });
-      db.createObjectStore('settings');
+    // Each step runs only for databases older than it, so a future DB_VERSION bump adds an
+    // `if (oldVersion < 2) { ... }` block and never re-creates (or drops) existing stores.
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        const drafts = db.createObjectStore('drafts', { keyPath: 'id' });
+        drafts.createIndex('updatedAt', 'updatedAt');
+        drafts.createIndex('deletedAt', 'deletedAt');
+        db.createObjectStore('bodies', { keyPath: 'id' });
+        db.createObjectStore('assets', { keyPath: 'hash' });
+        db.createObjectStore('settings');
+      }
     },
   });
 }

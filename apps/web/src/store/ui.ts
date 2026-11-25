@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import type { SheetField } from '@hexadata/spec-templates';
-import type { OverflowIssue } from '../editor/overflow.ts';
+import { SINGLE_PAGE_LAYOUT, type OverflowIssue, type SheetLayout } from '../editor/layout.ts';
+import type { SpecSheetContent } from '@hexadata/spec-core';
+
+/** Page breaks the PDF engine computed for exactly this `content` and template. */
+export interface EngineLayoutResult {
+  content: SpecSheetContent;
+  templateId: string;
+  templateVersion: number;
+  layout: SheetLayout;
+}
 
 export type ZoomMode = 'fit-width' | 'fit-page' | number;
 export const ZOOM_MIN = 0.25;
@@ -39,8 +48,7 @@ export type DialogState =
       danger?: boolean;
       onConfirm(): void;
     }
-  | { kind: 'switch-template'; templateId: string; templateName: string; hidden: SheetField[] }
-  | { kind: 'export-issues'; messages: string[]; onConfirm(): void };
+  | { kind: 'switch-template'; templateId: string; templateName: string; hidden: SheetField[] };
 
 interface PersistedUi {
   zoom: ZoomMode;
@@ -96,6 +104,8 @@ interface UiState extends PersistedUi {
   exporting: 'idle' | 'rendering' | 'waking';
   /** Layout problems found on the sheet (content colliding with the footer, running off the page). */
   issues: OverflowIssue[];
+  /** Where rows break across pages (derived from measurements, never saved). */
+  layout: SheetLayout;
 
   setZoom(zoom: ZoomMode): void;
   setZoomFactor(factor: number): void;
@@ -112,6 +122,10 @@ interface UiState extends PersistedUi {
   announce(message: string): void;
   setExporting(state: UiState['exporting']): void;
   setIssues(issues: OverflowIssue[]): void;
+  setLayout(layout: SheetLayout): void;
+  /** The PDF engine's answer for one version of the sheet (see `useEngineLayout`). */
+  engine: EngineLayoutResult | null;
+  setEngine(result: EngineLayoutResult | null): void;
 }
 
 let toastId = 0;
@@ -134,6 +148,9 @@ export const useUi = create<UiState>()((set, get) => {
     announcement: '',
     exporting: 'idle',
     issues: [],
+    layout: SINGLE_PAGE_LAYOUT,
+    engine: null,
+    setEngine: (engine) => set({ engine }),
 
     setZoom(zoom) {
       set({ zoom: typeof zoom === 'number' ? clampZoom(zoom) : zoom });
@@ -165,6 +182,12 @@ export const useUi = create<UiState>()((set, get) => {
     closeDialog: () => set({ dialog: null }),
     announce: (announcement) => set({ announcement }),
     setExporting: (exporting) => set({ exporting }),
+    setLayout: (layout) =>
+      set((state) =>
+        JSON.stringify(state.layout) === JSON.stringify(layout)
+          ? state
+          : { layout, issues: layout.issues },
+      ),
     setIssues: (issues) =>
       set((state) =>
         JSON.stringify(state.issues) === JSON.stringify(issues) ? state : { issues },

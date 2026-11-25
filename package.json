@@ -5,7 +5,7 @@
   "type": "module",
   "description": "HexaData Spec Editor: template-driven A4 spec-sheet editor with drafts and a hardened PDF renderer.",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "workspaces": [
     "packages/*",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "@types/pngjs": "^6.0.5",

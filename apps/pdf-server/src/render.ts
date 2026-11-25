@@ -1,4 +1,5 @@
 import {
+  LIMITS,
   plainText,
   type AssetRef,
   type SpecDocument,
@@ -7,10 +8,15 @@ import {
 import {
   assetHash,
   builtinId,
+  computePagination,
   loadTemplate,
+  measureLayout,
+  mmToPx,
+  paginationGeometry,
   slotCss,
   type AssetUrls,
   type BrandLogoName,
+  type PaginationState,
 } from '@hexadata/spec-templates';
 import { printCsp, renderPrintDocument } from '@hexadata/spec-templates/print';
 import type { AssetStore, VirtualFile } from './assets.ts';
@@ -30,8 +36,18 @@ export interface RenderRequest {
   uploads: ReadonlyMap<AssetRef, Upload>;
 }
 
+/** Where the sheet breaks across pages, as decided by the engine (the single authority for page breaks). */
+export interface EngineLayout {
+  pages: number;
+  spacers: Record<string, number>;
+  /** More pages than allowed, or a row taller than a page. */
+  overflow: boolean;
+}
+
 export interface RenderResult {
+  /** Empty for a layout-only request. */
   pdf: Uint8Array;
+  layout: EngineLayout;
   /** Plain-text title (document property and basis of the file name). */
   title: string;
   pagesRendered: number;
@@ -43,6 +59,8 @@ export interface RenderResult {
 
 export interface RenderOptions {
   timeoutMs: number;
+  /** Measure and paginate only: no PDF. Images the request does not carry are replaced by same-size placeholders. */
+  layoutOnly?: boolean;
   log?: { warn(obj: object, msg: string): void };
 }
 
@@ -51,6 +69,15 @@ function referencedAssets(content: SpecSheetContent): AssetRef[] {
   if (content.productImage) refs.push(content.productImage);
   return refs;
 }
+
+/** A 1 x 1 PNG, the stand-in for uploaded images in layout-only requests. */
+const PLACEHOLDER_PNG: VirtualFile = {
+  body: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHnOcQAAAAABJRU5ErkJggg==',
+    'base64',
+  ),
+  type: 'image/png',
+};
 
 function cssFile(css: string): VirtualFile {
   return { body: Buffer.from(css, 'utf8'), type: 'text/css; charset=utf-8' };
@@ -95,7 +122,9 @@ export async function renderPdf(
   for (const ref of referencedAssets(doc.content)) {
     const builtin = builtinId(ref);
     const hash = assetHash(ref);
-    if (ref.startsWith('builtin:') ? !builtin : !hash || !uploads.has(ref)) {
+    if (
+      ref.startsWith('builtin:') ? !builtin : !hash || (!uploads.has(ref) && !options.layoutOnly)
+    ) {
       throw new HttpError(422, 'MISSING_ASSET', `Image "${ref}" is not available.`);
     }
   }
@@ -117,8 +146,14 @@ export async function renderPdf(
       }
       const hash = assetHash(ref);
       const upload = hash ? uploads.get(ref) : undefined;
-      if (!hash || !upload) return undefined;
+      if (!hash) return undefined;
       const path = `/asset/${hash}`;
+      if (!upload) {
+        // Layout only: the image sizes are fixed by the template, so a 1 px stand-in lays out identically.
+        if (!options.layoutOnly) return undefined;
+        files.set(path, PLACEHOLDER_PNG);
+        return RENDER_ORIGIN + path;
+      }
       files.set(path, { body: Buffer.from(upload.bytes), type: upload.mime });
       return RENDER_ORIGIN + path;
     },
@@ -130,20 +165,25 @@ export async function renderPdf(
   };
 
   const title = documentTitle(doc.content);
-  const html = renderPrintDocument({
-    template,
-    page: template.page,
-    value: { content: doc.content, urls },
-    title,
-    origin: RENDER_ORIGIN,
-    stylesheets: ['/brand/hexadata.css', '/brand/fonts.css', '/slots.css', '/template.css'].map(
-      (path) => RENDER_ORIGIN + path,
+  const buildDocument = (pagination?: PaginationState): VirtualFile => ({
+    body: Buffer.from(
+      renderPrintDocument({
+        template,
+        page: template.page,
+        value: { content: doc.content, urls, pagination },
+        title,
+        origin: RENDER_ORIGIN,
+        stylesheets: ['/brand/hexadata.css', '/brand/fonts.css', '/slots.css', '/template.css'].map(
+          (path) => RENDER_ORIGIN + path,
+        ),
+      }),
+      'utf8',
     ),
-  });
-  const documentFile: VirtualFile = {
-    body: Buffer.from(html, 'utf8'),
     type: 'text/html; charset=utf-8',
-  };
+  });
+  let documentFile = buildDocument();
+  let pagesNeeded = 1;
+  let layout: EngineLayout = { pages: 1, spacers: {}, overflow: false };
 
   let blocked: string[] = [];
 
@@ -165,18 +205,45 @@ export async function renderPdf(
         );
         blocked = sandbox.blocked;
 
-        await page.goto(RENDER_ORIGIN + DOCUMENT_PATH, {
-          waitUntil: 'load',
-          timeout: options.timeoutMs,
-        });
-        await page.evaluate(() => document.fonts.ready.then(() => undefined));
-        const brokenImages = await page.evaluate(
-          () =>
-            Array.from(document.images).filter((img) => !img.complete || img.naturalWidth === 0)
-              .length,
-        );
-        if (brokenImages > 0) {
-          throw new HttpError(422, 'INVALID_ASSET', 'One of the images could not be decoded.');
+        const load = async () => {
+          await page.goto(RENDER_ORIGIN + DOCUMENT_PATH, {
+            waitUntil: 'load',
+            timeout: options.timeoutMs,
+          });
+          await page.evaluate(() => document.fonts.ready.then(() => undefined));
+          const brokenImages = await page.evaluate(
+            () =>
+              Array.from(document.images).filter((img) => !img.complete || img.naturalWidth === 0)
+                .length,
+          );
+          if (brokenImages > 0) {
+            throw new HttpError(422, 'INVALID_ASSET', 'One of the images could not be decoded.');
+          }
+        };
+        await load();
+
+        // Pagination: measure the single-flow sheet in this very browser, decide where rows break (the same
+        // function the editor uses), and render again with the page breaks. Most sheets need one page: no second pass.
+        const measured = await page.evaluate(measureLayout, null, mmToPx(template.page.widthMm));
+        if (measured) {
+          const result = computePagination(
+            measured,
+            paginationGeometry(template, doc.content, LIMITS.maxPages),
+          );
+          layout = { pages: result.pages, spacers: result.spacers, overflow: result.overflow };
+          if (options.layoutOnly) return new Uint8Array(0);
+          if (result.overflow) {
+            throw new HttpError(
+              422,
+              'TOO_MANY_PAGES',
+              `The sheet needs more than ${LIMITS.maxPages} pages. Shorten the specification.`,
+            );
+          }
+          pagesNeeded = result.pages;
+          if (result.pages > 1) {
+            documentFile = buildDocument({ pages: result.pages, spacers: result.spacers });
+            await load();
+          }
         }
 
         return await page.pdf({
@@ -200,7 +267,19 @@ export async function renderPdf(
 
   if (blocked.length > 0) options.log?.warn({ blocked }, 'Blocked outbound requests during render');
 
-  const finalized = await finalizePdf(raw, { title, keywords: [template.name] }).catch(
+  if (options.layoutOnly) {
+    return {
+      pdf: raw,
+      layout,
+      title,
+      pagesRendered: layout.pages,
+      droppedPages: 0,
+      blockedRequests: blocked,
+      durationMs: Math.round(performance.now() - started),
+    };
+  }
+
+  const finalized = await finalizePdf(raw, { title, keywords: [template.name] }, pagesNeeded).catch(
     (error: unknown) => {
       options.log?.warn({ err: error }, 'PDF post-processing failed');
       throw renderFailed();
@@ -209,8 +288,9 @@ export async function renderPdf(
 
   return {
     pdf: finalized.pdf,
+    layout,
     title,
-    pagesRendered: finalized.pages,
+    pagesRendered: finalized.pages - finalized.droppedPages,
     droppedPages: finalized.droppedPages,
     blockedRequests: blocked,
     durationMs: Math.round(performance.now() - started),

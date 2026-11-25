@@ -16,10 +16,10 @@ Template-driven editor · unlimited local drafts · print-ready PDF · built on 
 
 ## What it does
 
-- **Edit the sheet itself.** Click any text on the A4 page and type. Bold, italic and underline, key features and table rows with hover handles, replaceable images, undo/redo, zoom, and a warning when content collides with the footer.
+- **Edit the sheet itself.** Click any text on the A4 page and type. Bold, italic and underline, key features and table rows with hover handles, replaceable images, undo/redo, zoom, and automatic extra pages when the specification grows (rows move whole to a continuation page; unused pages disappear; page numbers can be switched off in the Inspector).
 - **Pick a template.** A template dropdown in the header; "Classic" (the original HexaData sheet) ships today and new templates are one folder plus one registry line ([docs/templates.md](docs/templates.md)). Switching never deletes content: anything the new template does not show is kept.
 - **Drafts, unlimited.** Every edit is autosaved in your browser (IndexedDB). Create, rename, duplicate, search, trash and restore drafts, close the tab and continue any time. Download a draft as a `.hxspec` file (or a backup of all of them) to move between devices.
-- **A PDF that matches the screen.** The same React template renders the editor and the PDF, so what you see is what you print (verified pixel by pixel in the test suite). Output is a single-page A4 PDF with embedded brand fonts and real document properties.
+- **A PDF that matches the screen.** The same React template renders the editor and the PDF, so what you see is what you print (verified pixel by pixel in the test suite). Output is an A4 PDF (one page, or as many as the content needs, up to 8) with embedded brand fonts and real document properties.
 - **Fast and light.** Initial JavaScript is about 117 KB gzip, stylesheets 9 KB, no third-party requests, works offline once loaded (PWA). A performance budget gate keeps it that way.
 - **Accessible.** Keyboard-complete, WCAG 2.2 AA checked in CI in light and dark themes at phone, tablet and desktop widths.
 
@@ -46,6 +46,7 @@ npm run dev            # editor on http://localhost:5173, PDF engine on http://l
 ```
 apps/web  (React 19, Vite 8, Tailwind 4, zustand + immer, IndexedDB, PWA)
    │  uses                                   │  POST /v1/render  (document JSON + uploaded images)
+   │                                         │  POST /v1/layout  (page breaks only, no images)
    ▼                                         ▼
 packages/templates  ◄── same component ──►  apps/pdf-server  (Fastify, Puppeteer + chrome-headless-shell)
    │  slots, registry, Classic                  │  validates · sandboxes · renders · stamps PDF metadata
@@ -54,6 +55,7 @@ packages/core  (content model · rich text · schema · limits · migrations)   
 ```
 
 - **Content is data, not HTML.** Rich text is lines of runs with bold/italic/underline marks. One schema validates it in the editor, in `.hxspec` import and on the server. User text can never become markup.
+- **One layout authority.** The PDF engine decides where the specification breaks across pages (`POST /v1/layout`, the same measurement the export uses) and the editor shows exactly those breaks, even in a browser that enforces a minimum font size. Offline, the editor falls back to its own estimate.
 - **One component, two outputs.** Templates place content only through slots. In edit mode the editor swaps in editable cells; in print mode the server renders the same tree to static HTML for Chrome.
 - **Brand-first UI.** Tokens, fonts, logos and `.hd-*` components come from `@hexadata/brand` (light and dark themes included). The printed sheet uses the raw palette as fixed paper; the app chrome uses the contrast-checked roles.
 
@@ -61,7 +63,7 @@ More detail for contributors and agents: [AGENTS.md](AGENTS.md) · [CONTRIBUTING
 
 ## Drafts and your data
 
-Drafts live in **this browser, on this device**, in IndexedDB. The Storage dialog (More → Download backup, or the Storage button in the drafts panel) shows usage and lets you ask the browser for persistent storage; browsers decide that request themselves, so a backup remains the reliable safety net. They are not uploaded anywhere; exporting a PDF sends only the sheet being exported (and its uploaded images) to the PDF engine, which does not store it. Clearing site data, private windows or switching browsers removes drafts: use **More → Download backup** regularly. Deleted drafts stay in the trash for 30 days. Only one tab edits a draft at a time (the other shows read-only with "Edit here instead").
+Drafts live in **this browser, on this device**, in IndexedDB. The Storage dialog (More → Download backup of all drafts, or the Storage button in the drafts panel) shows usage and lets you ask the browser for persistent storage; browsers decide that request themselves, so a backup remains the reliable safety net. They are not uploaded anywhere; exporting a PDF sends only the sheet being exported (and its uploaded images) to the PDF engine, which does not store it. Clearing site data, private windows or switching browsers removes drafts: use **More → Download backup of all drafts** regularly. Deleted drafts stay in the trash for 30 days. Only one tab edits a draft at a time (the other shows read-only with "Edit here instead").
 
 ## Security model
 
@@ -109,6 +111,7 @@ Behind a reverse proxy set `-e TRUST_PROXY=1` so rate limits see client IPs.
 | `RATE_LIMIT_MAX`         | `30` per minute    | Per-IP render limit (`RATE_LIMIT_WINDOW_MS` sets the window)                   |
 | `TRUST_PROXY`            | `false`            | Proxy hops (`1`, `true`) when behind a reverse proxy                           |
 | `CHROME_NO_SANDBOX`      | on for Linux       | See the security model                                                         |
+| `WARM_ON_BOOT`           | `1`                | Launch Chrome at start-up so the first export is fast (`0` to launch lazily)   |
 | `LOG_LEVEL`              | `info`             | `trace` … `fatal`, `silent`                                                    |
 
 The web app reads `VITE_API_BASE_URL` at build time (empty = same origin).
@@ -117,7 +120,7 @@ The web app reads `VITE_API_BASE_URL` at build time (empty = same origin).
 
 - **"The PDF engine could not be reached"**: the server is not running (dev: `npm run dev`), the URL is wrong (`VITE_API_BASE_URL`), or a free-tier host is waking up (retry after a minute).
 - **"This site is not allowed to use the PDF engine"**: add the app's exact origin to `ALLOWED_ORIGINS`.
-- **Export fails with "layout problems"**: the sheet has content that collides with the footer; shorten it or confirm to export anyway (overflow is clipped).
+- **"The sheet needs N pages; the limit is 8"** (or "A specification row is taller than a page"): shorten the specification text or remove rows. The Inspector's "Sheet checks" shows the current page count.
 - **Drafts vanished**: site data was cleared or you are in a different browser/profile. Restore from a backup via **Import**.
 - **Chrome not found when starting the server**: run `npm install` again, or `npx puppeteer browsers install chrome-headless-shell`.
 - **`Chrome` crashes in a container**: keep `CHROME_NO_SANDBOX=1` and give the container at least 512 MB.

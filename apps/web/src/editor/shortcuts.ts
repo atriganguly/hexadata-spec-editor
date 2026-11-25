@@ -49,6 +49,12 @@ export function useShortcuts(handlers: ShortcutHandlers): void {
       const doc = useDoc.getState();
       const ui = useUi.getState();
 
+      // Plain inputs (draft name, search...) keep their native undo; sheet cells use the document history.
+      const nativeField =
+        event.target instanceof HTMLElement &&
+        /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName);
+
+      if (nativeField && mod && (key === 'z' || key === 'y')) return;
       if (mod && key === 'z' && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         doc.undo();

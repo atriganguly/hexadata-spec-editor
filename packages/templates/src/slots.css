@@ -17,3 +17,24 @@
 .rt u {
   text-decoration: underline;
 }
+
+/* Page chrome of a multi-page sheet: one layer per page, over the continuous flow. Never takes pointer events
+   itself, so it cannot block the rows underneath; its content does. */
+.hd-page {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.hd-page > * {
+  pointer-events: auto;
+}
+
+/* Page break inside a specification table: an empty row, no borders, no padding. */
+table .hd-page-gap td {
+  padding: 0;
+  border: 0;
+  font-size: 0;
+  line-height: 0;
+}

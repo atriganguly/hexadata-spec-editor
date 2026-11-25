@@ -11,6 +11,11 @@ updates:
     ignore:
       # The vendored brand package is replaced with `npm run brand:update`, never by a bot.
       - dependency-name: '@hexadata/brand'
+      # @eslint/js must stay on the same major as eslint: bump them together by hand.
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:

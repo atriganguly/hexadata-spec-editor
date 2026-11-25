@@ -9,7 +9,8 @@
   position: relative;
   box-sizing: border-box;
   width: 210mm;
-  height: 297mm;
+  /* One page per 297 mm; the page count comes from the layout (see paginate.ts). */
+  height: calc(var(--hd-pages, 1) * 297mm);
   overflow: hidden;
   background: var(--sheet-paper, transparent);
   color: var(--hd-obsidian);
@@ -44,6 +45,12 @@
   height: 14mm;
   padding: 0 12mm;
   background: var(--hd-cyan);
+}
+
+.cs-header--chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 .cs-header-title {
@@ -136,6 +143,14 @@
   background: var(--hd-cyan);
 }
 
+/* Continuation tab: drawn by the page chrome, right under the slim header (rows start at continuationTopMm). */
+.cs-tab-row--chrome {
+  position: absolute;
+  top: 14mm;
+  right: 12mm;
+  left: 12mm;
+}
+
 /* ---------- Image + features ---------- */
 .cs-middle {
   display: flex;
@@ -220,6 +235,31 @@
 }
 
 /* ---------- Footer ---------- */
+/*
+ * Pages other than the last: a slim page-number tag ("PAGE 01/04") above the bottom bar. It is the brand's own
+ * accent badge (.hd-badge--accent: mono, semibold, uppercase, 2 px "tag" radius), on the fixed light paper: white
+ * on Deep Blue, an allowed pair. Built from the same tokens as the component, which the print document does not load.
+ */
+.cs-page-tag {
+  position: absolute;
+  right: 12mm;
+  bottom: 6mm;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem var(--hd-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--hd-radius-sm);
+  background: var(--hd-deep-blue);
+  color: var(--hd-white);
+  font-family: var(--hd-font-mono);
+  font-size: var(--hd-font-size-xs);
+  font-weight: var(--hd-font-weight-semibold);
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .cs-footer {
   position: absolute;
   right: 12mm;
@@ -228,6 +268,11 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+}
+
+/* The logo stays right-aligned on pages without footer text. */
+.cs-footer .cs-mark {
+  margin-left: auto;
 }
 
 .cs-footer-text {

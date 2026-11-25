@@ -28,17 +28,19 @@ A template-driven editor for HexaData A4 specification sheets. People edit a she
 ## Hard rules (never break)
 
 1. **Never invent, infer or "improve" a brand value** (colour, font, tagline, logo, spacing, radius). Source: `@hexadata/brand` (tokens, `.hd-*` components, logos) and its rules (`brand/contrast.json` in the brand repo). Style application chrome with **roles** (`--hd-bg`, `--hd-fg`, `--hd-accent`, ...). Raw palette tokens (`--hd-cyan`, ...) are allowed only in template CSS, because a printed sheet is fixed light "paper" in both themes. Only allowed contrast pairs; never white text on cyan. ESLint enforces no hex/rgb colours and no Tailwind palette classes in `src/`.
-2. **Templates use slots only.** No editor UI, `contentEditable`, handlers or `mode` checks in template markup; no content read directly from props to render text. Conditional layout must behave the same in both modes (see `data-hd-flow` / `data-hd-fixed` for overflow checks).
+2. **Templates use slots only.** No editor UI, `contentEditable`, handlers or `mode` checks in template markup; no content read directly from props to render text. Conditional layout must behave the same in both modes (see `data-hd-flow` / `data-hd-fixed` and the pagination notes in `docs/templates.md`).
 3. **User content never becomes markup.** No `dangerouslySetInnerHTML`, no string-built HTML from content, anywhere. The only string renderer is `richTextToHtml` (escapes; tested against the React renderer). Pasted HTML is reduced through `domToRichText`.
 4. **The renderer has no network.** `apps/pdf-server/src/sandbox.ts` answers every browser request from memory and aborts the rest; the print document carries a CSP with `script-src 'none'`. Never add `--disable-web-security`, never allow another origin, never load fonts or images from the internet (add them to the in-memory file map instead).
 5. **Limits live in `packages/core/src/limits.ts`.** The UI, the schema, draft import and the server all read them. Change them there, nowhere else.
 6. **Content model changes need a version bump, a migration and tests** (see below). Never change the meaning of stored data silently.
 7. **IndexedDB changes need a `DB_VERSION` upgrade path.** Never delete user data silently: deletes go to the trash first, purge only after the retention window, permanent deletes need an explicit confirmation.
 8. **Strict CSP in the web app** (`style-src 'self'`, `script-src 'self'`): no inline `<script>`, no `style=` attributes in HTML, no `eval`. React `style` props are fine (CSSOM). Formatting commands must use tags: `document.execCommand('styleWithCSS', false, 'false')` is set on focus; do not remove it.
-9. **Performance budgets are a gate** (`npm run budgets`): initial JS <= 130 KB gzip, CSS <= 30 KB gzip, no embedded image over 2 KB, no image asset over 250 KB. New heavy code must be lazy (`import()`); new runtime dependencies need a reason.
+9. **Performance budgets are a gate** (`npm run budgets`): initial JS <= 130 KB gzip, CSS <= 30 KB gzip, no embedded image over 2 KB, no image asset over 250 KB, PDF server bundle <= 100 KB, service worker present. New heavy code must be lazy (`import()`); new runtime dependencies need a reason.
 10. **No secrets in the repo.** `.env*` is git-ignored; never read, print or commit keys.
 11. **Outward-facing actions need the owner's explicit go-ahead in that session:** `git push`, tags, releases, GitHub/Render settings or secrets, Pages changes, publishing images. Never force-push.
 12. **Brand assets are proprietary** (HexaData names, logos, taglines). Never relicense, never copy them outside `@hexadata/brand` / `apps/web/public/brand` / the shipped template images.
+
+**Pages are derived, never stored, and the engine is the authority.** The sheet is one continuous flow, `pages x page height` tall. `measureLayout` reads the rendered rows and the pure `paginate` (`packages/templates/src/paginate.ts`) decides where they break; spacer rows push rows onto the next page and `Pages` draws per-page chrome. The PDF engine runs this in headless Chrome (`page.evaluate`, so `measureLayout` must stay self-contained) for `POST /v1/render` and for `POST /v1/layout`; the editor asks `/v1/layout` after every change (`useEngineLayout`, debounced) and applies the engine's breaks, so the rows that start page 2 in the editor are the rows that start page 2 in the PDF. The editor's own measurement is only the instant preview and the offline fallback. The limit is `LIMITS.maxPages` (8). A browser that enforces a minimum font size would inflate the sheet's small print (CSS `zoom` does not help, the browser clamps after it): the editor then lays the sheet out 4x larger by rewriting the template CSS (`scale-css.ts`) and scaling it back down. `e2e/pagination-parity.spec.ts` runs in a normal and in a minimum-font-size Chromium (`chromium-min-font` project) and compares the rows on every editor page with the exported PDF.
 
 ## Recipes
 
@@ -50,7 +52,7 @@ A template-driven editor for HexaData A4 specification sheets. People edit a she
 
 **Update the brand package.** `npm run brand:update -- <version> [tarball-or-url]`, then `npm install`, `npm run check`, and review the editor in light and dark. Brand changes are visual changes: the template contrast test (`packages/templates/test/classic.test.tsx`) must stay green.
 
-**Optimise or replace a shipped image.** Put the source in `packages/templates/src/assets/`, adjust and run `node scripts/optimize-assets.mjs` (sharp), keep files under the budget, register new ids in `src/assets.ts`.
+**Optimise or replace a shipped image.** Run `node scripts/optimize-assets.mjs <source-image> [width]` (sharp; writes a `.webp` next to the source, default width 1200 px), keep the result in `packages/templates/src/assets/` under the budget, register new ids in `src/assets.ts`.
 
 **Release / deploy.** Merge to `main`; CI runs; `pages.yml` publishes the web app after green CI; Render redeploys the engine (`autoDeployTrigger: checksPass`). The owner performs pushes, tags and settings changes.
 
@@ -72,10 +74,10 @@ A template-driven editor for HexaData A4 specification sheets. People edit a she
 ## Testing map
 
 - `packages/core/test`: schema, limits, migrations, rich text, image header checks.
-- `packages/templates/test`: registry, defaults factory, print rendering, escaping, edit/print structure equality, brand-discipline checks on the CSS.
-- `apps/pdf-server/test`: config, API contract (limits, CORS, rate limit, 503/504), sandbox (hostile HTML), PDF structure and metadata, rendered colours.
+- `packages/templates/test`: registry, defaults factory, print rendering (one and two pages), escaping, edit/print structure equality, pagination (`paginate`), brand-discipline checks on the CSS.
+- `apps/pdf-server/test`: config, API contract (limits, CORS, rate limit, 503/504, multi-page output, `/v1/layout`, the page limit), sandbox (hostile HTML), PDF structure and metadata, rendered colours.
 - `apps/web/test`: store (undo/redo, coalescing, Reset regression), IndexedDB drafts, session/autosave/locks, `.hxspec` import/export, export client, DOM to rich text.
-- `e2e`: real browser, production builds: editing, drafts, export, dialogs (every dialog must reopen after closing), axe (WCAG 2.2 AA, light/dark, 3 widths), editor vs PDF pixel parity.
+- `e2e`: real browser, production builds: editing, drafts, export, dialogs (every dialog must reopen after closing), axe (WCAG 2.2 AA, light/dark, 3 widths), editor vs PDF pixel parity, and page-break parity in a normal and a minimum-font-size browser.
 
 ## Pitfalls seen in this repo
 

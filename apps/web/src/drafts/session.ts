@@ -282,6 +282,17 @@ export class SessionController {
     };
   }
 
+  /** A draft file for any draft, without opening it (the open draft is exported with its unsaved edits). */
+  async exportDraftById(id: string): Promise<{ bytes: Uint8Array; fileName: string } | undefined> {
+    if (id === this.persisted?.id) return this.exportCurrentDraft();
+    const draft = await this.store.get(id);
+    if (!draft) return undefined;
+    return {
+      bytes: await exportDraft(this.store, draft),
+      fileName: draftFileName(draft.name, draft.id),
+    };
+  }
+
   async exportEverything(): Promise<{ bytes: Uint8Array; count: number } | undefined> {
     await this.flush();
     const metas = useSession.getState().drafts;

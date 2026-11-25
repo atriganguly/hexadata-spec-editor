@@ -1,6 +1,7 @@
 import { useRef, useState, type DragEvent, type ReactElement } from 'react';
 import { TextField } from '@hexadata/brand/react';
 import { BRAND_REVISION } from '@hexadata/brand';
+import { LIMITS } from '@hexadata/spec-core';
 import { fieldLabel, listTemplates } from '@hexadata/spec-templates';
 import { runtime } from './runtime.ts';
 import { downloadBlob } from '../export/export-pdf.ts';
@@ -50,7 +51,7 @@ function NewDraftDialog({ close }: { close(): void }): ReactElement {
         <TextField
           label="Draft name"
           value={name}
-          maxLength={120}
+          maxLength={LIMITS.draftName}
           onChange={(event) => setName(event.target.value)}
         />
         <ul className="template-grid" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -505,40 +506,6 @@ function SwitchTemplateDialog({
   );
 }
 
-function ExportIssuesDialog({
-  dialog,
-  close,
-}: {
-  dialog: Extract<DialogState, { kind: 'export-issues' }>;
-  close(): void;
-}): ReactElement {
-  return (
-    <Dialog title="The sheet has layout problems" onClose={close}>
-      <p>The PDF is a single A4 page, so content that does not fit is clipped:</p>
-      <ul>
-        {dialog.messages.map((message) => (
-          <li key={message}>{message}</li>
-        ))}
-      </ul>
-      <Actions>
-        <button type="button" className="hd-btn hd-btn--secondary" onClick={close}>
-          Go back and fix
-        </button>
-        <button
-          type="button"
-          className="hd-btn"
-          onClick={() => {
-            close();
-            dialog.onConfirm();
-          }}
-        >
-          Export anyway
-        </button>
-      </Actions>
-    </Dialog>
-  );
-}
-
 function AboutDialog({ close }: { close(): void }): ReactElement {
   return (
     <Dialog title="HexaData Spec Editor" onClose={close}>
@@ -584,7 +551,5 @@ export function Dialogs(): ReactElement | null {
       return <ConfirmDialog key={seq} dialog={dialog} close={close} />;
     case 'switch-template':
       return <SwitchTemplateDialog key={seq} dialog={dialog} close={close} />;
-    case 'export-issues':
-      return <ExportIssuesDialog key={seq} dialog={dialog} close={close} />;
   }
 }

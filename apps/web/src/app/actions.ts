@@ -14,17 +14,15 @@ export function cancelExport(): void {
   activeExport?.abort();
 }
 
-export async function runExport(options: { confirmed?: boolean } = {}): Promise<void> {
+export async function runExport(): Promise<void> {
   const ui = useUi.getState();
   if (ui.exporting !== 'idle') return;
 
-  const { issues } = ui;
-  if (issues.length > 0 && !options.confirmed) {
-    ui.openDialog({
-      kind: 'export-issues',
-      messages: issues.map((issue) => issue.message),
-      onConfirm: () => void runExport({ confirmed: true }),
-    });
+  // Content that cannot be laid out (more pages than allowed, a row taller than a page) would be refused by the
+  // PDF engine: say so here, with the reason.
+  const [problem] = ui.issues;
+  if (problem) {
+    ui.toast(problem.message, { tone: 'danger' });
     return;
   }
 
@@ -64,9 +62,7 @@ export async function runExport(options: { confirmed?: boolean } = {}): Promise<
       const retryable = !(error instanceof ExportError) || error.retryable;
       useUi.getState().toast(message, {
         tone: 'danger',
-        action: retryable
-          ? { label: 'Try again', run: () => void runExport({ confirmed: true }) }
-          : undefined,
+        action: retryable ? { label: 'Try again', run: () => void runExport() } : undefined,
       });
     }
   } finally {

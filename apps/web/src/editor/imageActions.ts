@@ -1,3 +1,4 @@
+import { LIMITS } from '@hexadata/spec-core';
 import { getTemplateMeta } from '@hexadata/spec-templates';
 import { runtime } from '../app/runtime.ts';
 import { ImageRejected, processImage } from '../assets/pipeline.ts';
@@ -52,7 +53,7 @@ export async function applyImageFile(file: Blob, target: ImageTargetRef): Promis
     if (target.kind === 'product') doc.setProductImage(ref);
     else if (target.kind === 'logo') doc.replacePartnerLogo(target.id, ref);
     else if (!doc.addPartnerLogo(ref)) {
-      ui.toast('A sheet can hold up to 4 partner logos.', { tone: 'warning' });
+      ui.toast(`A sheet can hold up to ${LIMITS.partnerLogos} partner logos.`, { tone: 'warning' });
       return false;
     }
     ui.announce('Image updated.');

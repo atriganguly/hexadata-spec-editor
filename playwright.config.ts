@@ -30,6 +30,19 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
+    {
+      // A browser that enforces a minimum font size (an accessibility setting) inflates small print. The editor must
+      // still lay the sheet out, and break pages, exactly like the PDF engine.
+      name: 'chromium-min-font',
+      testMatch: ['pagination-parity.spec.ts', 'parity.spec.ts'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 900 },
+        launchOptions: {
+          args: ['--blink-settings=minimumFontSize=16,minimumLogicalFontSize=16'],
+        },
+      },
+    },
   ],
   webServer: [
     {

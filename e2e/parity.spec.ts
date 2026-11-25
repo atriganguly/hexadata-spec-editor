@@ -102,5 +102,7 @@ test('the editor canvas matches the exported PDF (one template, two outputs)', a
     `parity: ${(ratio * 100).toFixed(2)}% of pixels differ (${mismatched} of ${width * height})`,
   );
   // Text anti-aliasing differs by OS (0.9% on Windows, 2.8% on the Linux CI runner); a layout shift would be far higher.
-  expect(ratio).toBeLessThan(0.04);
+  // In the minimum-font-size project the editor lays the sheet out 4x larger and scales it down: the layout is
+  // identical, only the text anti-aliasing differs more.
+  expect(ratio).toBeLessThan(testInfo.project.name === 'chromium-min-font' ? 0.08 : 0.04);
 });

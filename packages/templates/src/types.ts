@@ -61,10 +61,24 @@ export interface AssetUrls {
   brandLogo(name: BrandLogoName): string;
 }
 
+/** Where the specification rows break across pages (see `paginate`). Derived from measurements, never stored. */
+export interface PaginationState {
+  pages: number;
+  /** Space in px (96 dpi) inserted before a row so it starts on the next page. */
+  spacers: Readonly<Record<string, number>>;
+}
+
 export interface SheetValue {
   content: SpecSheetContent;
   mode: TemplateMode;
   urls: AssetUrls;
+  /**
+   * How many times larger than its real size the sheet is laid out (the editor does this in browsers that enforce a
+   * minimum font size). Only lengths written in code, such as spacer heights, need it. Default 1.
+   */
+  layoutScale?: number;
+  /** Page breaks. Absent or `pages: 1` for a sheet that fits on one page. */
+  pagination?: PaginationState;
   /** Rich-text cell renderer. Defaults to static, escaped rendering (PDF). The editor injects an editable one. */
   TextCell?: ComponentType<TextCellProps>;
 }
@@ -96,6 +110,12 @@ export interface TemplateMeta {
     productImage: ImageSlotSpec;
     partnerLogo: ImageSlotSpec;
   };
+  /**
+   * Page geometry for pagination, in mm: where flowing rows start on continuation pages (below the continuation
+   * header), and how much room the slim footer of every page but the last takes from the page bottom, with and
+   * without the page number tag.
+   */
+  pagination: { continuationTopMm: number; slimFooterMm: number; slimFooterNoNumbersMm: number };
   /** Content parts this template renders. Anything else is kept in the draft but not shown. */
   fields: readonly SheetField[];
   /** Brand colour pairs the template renders as text on a fill. Verified against the brand contrast gate in tests. */

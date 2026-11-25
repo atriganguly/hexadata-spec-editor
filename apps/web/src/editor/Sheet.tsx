@@ -5,7 +5,9 @@ import { useAssetVersion } from '../assets/asset-cache.ts';
 import { runtime } from '../app/runtime.ts';
 import { useSession } from '../drafts/session.ts';
 import { useDoc } from '../store/doc.ts';
+import { useUi } from '../store/ui.ts';
 import { EditableTextCell } from './EditableTextCell.tsx';
+import { detectLayoutScale } from './scale-css.ts';
 
 /**
  * The template, rendered in edit mode. This is the same component tree the PDF renderer uses in print mode:
@@ -15,16 +17,19 @@ export function Sheet({ template }: { template: LoadedTemplate }): ReactElement 
   const content = useDoc((state) => state.content);
   const readOnly = useSession((state) => state.readOnly);
   const assetVersion = useAssetVersion((state) => state.version);
+  const layout = useUi((state) => state.layout);
 
   const value = useMemo(
     () => ({
       content,
       mode: 'edit' as const,
+      layoutScale: detectLayoutScale(),
+      pagination: { pages: layout.pages, spacers: layout.spacers },
       // `version` changes when an uploaded image finishes loading, which gives the slots new URLs to render.
       urls: { ...createEditorUrls(runtime().assets.urlFor), version: assetVersion },
       TextCell: readOnly ? StaticTextCell : EditableTextCell,
     }),
-    [content, readOnly, assetVersion],
+    [content, readOnly, assetVersion, layout],
   );
 
   const { Component } = template;

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { applyPatches, current, enablePatches, produceWithPatches, type Patch } from 'immer';
 import {
+  createEmptyContent,
   createFeature,
   createPartnerLogo,
   createRow,
@@ -64,6 +65,8 @@ interface DocState extends Partial<DocSnapshot> {
 
   setName(name: string): void;
   setTemplate(templateId: string, templateVersion: number): void;
+  /** Sets a sheet setting stored with the draft (`content.extras`), as one undoable step. */
+  setExtra(key: string, value: string | number | boolean | null): void;
   replaceContent(label: string, content: SpecSheetContent): void;
 
   setText(address: TextAddress, value: RichText): void;
@@ -81,17 +84,6 @@ interface DocState extends Partial<DocSnapshot> {
   replacePartnerLogo(id: string, ref: AssetRef): void;
   removePartnerLogo(id: string): void;
 }
-
-const emptyContent = (): SpecSheetContent => ({
-  meta: { headerTitle: [], title: [], subtitle: [] },
-  partnerLogos: [],
-  productImage: null,
-  keyFeatures: [],
-  applications: [],
-  specColumns: [[], []],
-  footer: { url: [], disclaimer: [], copyright: [] },
-  extras: {},
-});
 
 function move<T>(list: T[], index: number, delta: -1 | 1): void {
   const target = index + delta;
@@ -187,7 +179,7 @@ export const useDoc = create<DocState>()((set, get) => {
 
   return {
     ready: false,
-    content: emptyContent(),
+    content: createEmptyContent(),
     past: [],
     future: [],
     revision: 0,
@@ -210,7 +202,7 @@ export const useDoc = create<DocState>()((set, get) => {
         name: undefined,
         templateId: undefined,
         templateVersion: undefined,
-        content: emptyContent(),
+        content: createEmptyContent(),
         past: [],
         future: [],
         revision: 0,
@@ -254,6 +246,11 @@ export const useDoc = create<DocState>()((set, get) => {
     },
     setTemplate(templateId, templateVersion) {
       set((state) => ({ templateId, templateVersion, revision: state.revision + 1 }));
+    },
+    setExtra(key, value) {
+      commit(`Change ${key}`, (draft) => {
+        if (draft.extras[key] !== value) draft.extras[key] = value;
+      });
     },
     replaceContent(label, content) {
       commit(label, (draft) => {

@@ -1,15 +1,28 @@
-import type { ReactElement } from 'react';
-import { BrandLogo, Features, PartnerLogos, ProductImage, SpecTable, Text } from '../slots.tsx';
+import type { CSSProperties, ReactElement } from 'react';
+import {
+  BrandLogo,
+  Features,
+  PartnerLogos,
+  Pages,
+  ProductImage,
+  SpecTable,
+  Text,
+  TextCopy,
+  usePageCount,
+  usePageNumbers,
+} from '../slots.tsx';
 
 /** Slanted section tab. Module-level so it never remounts. */
-function Tab({ title }: { title: string }): ReactElement {
+function Tab({ title, chrome }: { title: string; chrome?: boolean }): ReactElement {
   return (
-    <div className="cs-tab-row">
+    <div className={chrome ? 'cs-tab-row cs-tab-row--chrome' : 'cs-tab-row'}>
       <div className="cs-tab">{title}</div>
       <div className="cs-tab-line" />
     </div>
   );
 }
+
+const pad = (n: number): string => String(n).padStart(2, '0');
 
 const tableProps = {
   className: 'cs-table',
@@ -19,12 +32,22 @@ const tableProps = {
 
 /**
  * The original HexaData specification sheet.
- * `data-hd-flow` marks flowing content and `data-hd-fixed` marks absolutely positioned content; the editor
- * uses them to warn when the two collide (overflow).
+ *
+ * The header, title block, image, features and the specification tables are ONE continuous flow. When the tables
+ * grow past the page, rows move to the next page (see `paginate`) and the sheet becomes `pages x 297 mm` tall.
+ * Everything that belongs to a page rather than to the flow is drawn by `Pages`, once per page: the continuation
+ * header on pages 2+, the bottom bar on every page, the page number tag on every page but the last, the full footer (text and logo) on the last page.
+ * `data-hd-flow` marks the flowing tables and `data-hd-fixed` the page chrome the rows must stay above.
  */
 export function Classic(): ReactElement {
+  const pages = usePageCount();
+  const numbers = usePageNumbers();
   return (
-    <div className="cs-sheet" data-template="classic">
+    <div
+      className="cs-sheet"
+      data-template="classic"
+      style={{ ['--hd-pages' as string]: pages } as CSSProperties}
+    >
       <div className="cs-header">
         <Text field="meta.headerTitle" className="cs-header-title" />
       </div>
@@ -63,17 +86,39 @@ export function Classic(): ReactElement {
         </div>
       </div>
 
-      <div className="cs-footer">
-        <div className="cs-footer-text" data-hd-fixed="">
-          <Text field="footer.url" className="cs-footer-url" />
-          <Text field="footer.disclaimer" className="cs-footer-disclaimer" />
-          <Text field="footer.copyright" />
-        </div>
-        <div className="cs-mark">
-          <BrandLogo name="centered-primary-on-light" className="cs-mark-img" fixed />
-        </div>
-      </div>
-      <div className="cs-bottom-bar" />
+      <Pages heightMm={297}>
+        {({ index, count, last }) => (
+          <>
+            {index > 0 ? (
+              <>
+                <div className="cs-header cs-header--chrome">
+                  <TextCopy field="meta.headerTitle" className="cs-header-title" />
+                </div>
+                <Tab title="Specification (continued)" chrome />
+              </>
+            ) : null}
+            {last ? (
+              // The full footer (link, disclaimer, copyright, logo) belongs to the last page only.
+              <div className="cs-footer">
+                <div className="cs-footer-text" data-hd-fixed="footer">
+                  <Text field="footer.url" className="cs-footer-url" />
+                  <Text field="footer.disclaimer" className="cs-footer-disclaimer" />
+                  <Text field="footer.copyright" />
+                </div>
+                <div className="cs-mark">
+                  <BrandLogo name="centered-primary-on-light" className="cs-mark-img" fixed />
+                </div>
+              </div>
+            ) : numbers ? (
+              // Every other page: just a page number tag (the brand's accent badge), e.g. "Page 01/04".
+              <div className="cs-page-tag" data-hd-fixed="tag">
+                {`Page ${pad(index + 1)}/${pad(count)}`}
+              </div>
+            ) : null}
+            <div className="cs-bottom-bar" />
+          </>
+        )}
+      </Pages>
     </div>
   );
 }

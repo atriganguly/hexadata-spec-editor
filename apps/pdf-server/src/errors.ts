@@ -9,6 +9,7 @@ export type ErrorCode =
   | 'UNKNOWN_TEMPLATE'
   | 'MISSING_ASSET'
   | 'INVALID_ASSET'
+  | 'TOO_MANY_PAGES'
   | 'RATE_LIMITED'
   | 'BUSY'
   | 'RENDER_TIMEOUT'

@@ -117,12 +117,13 @@ let pdfjsPromise: Promise<PdfJs> | undefined;
 const loadPdfjs = () => (pdfjsPromise ??= import('pdfjs-dist/legacy/build/pdf.mjs'));
 
 /** Text of page 1, via pdf.js. */
-export async function pdfText(bytes: Uint8Array): Promise<string> {
+/** Text of one page (default: the first). */
+export async function pdfText(bytes: Uint8Array, pageNumber = 1): Promise<string> {
   const pdfjs = await loadPdfjs();
   const task = pdfjs.getDocument({ data: new Uint8Array(bytes), verbosity: 0 });
   try {
     const doc = await task.promise;
-    const content = await (await doc.getPage(1)).getTextContent();
+    const content = await (await doc.getPage(pageNumber)).getTextContent();
     return content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
   } finally {
     await task.destroy();

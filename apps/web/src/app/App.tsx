@@ -12,6 +12,7 @@ import { Stage } from '../editor/Stage.tsx';
 import { useTemplate, useTemplateStyles } from '../editor/useTemplate.ts';
 import { API_BASE } from '../lib/env.ts';
 import { warmEngine } from '../export/export-pdf.ts';
+import { useEngineLayout } from '../export/layout-client.ts';
 import { DraftsPanel } from '../panels/DraftsPanel.tsx';
 import { Inspector } from '../panels/Inspector.tsx';
 import { useDoc } from '../store/doc.ts';
@@ -108,6 +109,7 @@ export function App(): ReactElement {
   const template = useTemplate(templateId, templateVersion);
   useTemplateStyles(template?.css);
   usePersistedTheme();
+  useEngineLayout();
   useSafeExit();
   useServiceWorker();
 

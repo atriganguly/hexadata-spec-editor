@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { detectLayoutScale, scaleCss } from './scale-css.ts';
 import { loadTemplate, slotCss, type LoadedTemplate } from '@hexadata/spec-templates';
 
 /**
@@ -48,7 +49,8 @@ export function useTemplateStyles(css: string | undefined): void {
   useEffect(() => {
     if (css === undefined || !('adoptedStyleSheets' in document)) return;
     const sheet = new CSSStyleSheet();
-    sheet.replaceSync(`${slotCss}\n${css}`);
+    // Larger lengths when the browser enforces a minimum font size, so the editor wraps like the PDF.
+    sheet.replaceSync(scaleCss(`${slotCss}\n${css}`, detectLayoutScale()));
     const previous = installed;
     document.adoptedStyleSheets = [
       ...document.adoptedStyleSheets.filter((s) => s !== previous),

@@ -2,6 +2,8 @@ export * from './types.ts';
 export * from './assets.ts';
 export * from './fields.ts';
 export * from './rich-text.tsx';
+export * from './paginate.ts';
+export * from './measure.ts';
 export {
   SheetProvider,
   useSheet,
@@ -13,6 +15,10 @@ export {
   ProductImage,
   PartnerLogos,
   BrandLogo,
+  Pages,
+  TextCopy,
+  usePageCount,
+  usePageNumbers,
 } from './slots.tsx';
 export {
   DEFAULT_TEMPLATE_ID,

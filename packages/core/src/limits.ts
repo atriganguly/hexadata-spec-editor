@@ -28,6 +28,9 @@ export const LIMITS = {
   linesPerField: 60,
   runsPerLine: 48,
 
+  /** Most pages a sheet may grow to (rows move to continuation pages automatically). */
+  maxPages: 8,
+
   extrasEntries: 32,
   extrasKey: 64,
   extrasString: 1000,

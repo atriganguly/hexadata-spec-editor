@@ -66,13 +66,7 @@ function SaveStatus(): ReactElement {
     );
   }
   const label =
-    status === 'saving'
-      ? 'Saving…'
-      : status === 'saved' && lastSavedAt
-        ? `Saved ${timeAgo(lastSavedAt)}`
-        : lastSavedAt
-          ? `Saved ${timeAgo(lastSavedAt)}`
-          : 'Autosave on';
+    status === 'saving' ? 'Saving…' : lastSavedAt ? `Saved ${timeAgo(lastSavedAt)}` : 'Autosave on';
   return (
     <span
       className="save-status"
@@ -213,9 +207,7 @@ export function Header(): ReactElement {
     : [];
 
   const entries: MenuEntry[] = [
-    ...compactEntries.map((entry, index) =>
-      index === compactEntries.length - 1 ? { ...entry } : entry,
-    ),
+    ...compactEntries,
     {
       label: 'New draft',
       icon: <IconFilePlus />,

@@ -1,6 +1,14 @@
 import { isEmpty, type SpecSheetContent } from '@hexadata/spec-core';
 import type { SheetField, TemplateMeta } from './types.ts';
 
+/** Key in `content.extras` that switches the page number tag on continuation sheets. Default: shown. */
+export const SHOW_PAGE_NUMBERS_KEY = 'showPageNumbers';
+
+/** Whether page numbers are drawn on multi-page sheets (a sheet setting stored with the draft). */
+export function pageNumbersShown(content: SpecSheetContent): boolean {
+  return content.extras[SHOW_PAGE_NUMBERS_KEY] !== false;
+}
+
 /** Content parts that currently hold something. */
 export function fieldsInUse(content: SpecSheetContent): SheetField[] {
   const used: SheetField[] = [];

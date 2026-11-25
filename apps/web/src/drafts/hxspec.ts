@@ -5,7 +5,7 @@ import {
   type AssetRef,
   type SpecDocument,
 } from '@hexadata/spec-core';
-import { getTemplateMeta } from '@hexadata/spec-templates';
+import { builtinId, getTemplateMeta } from '@hexadata/spec-templates';
 import { APP_VERSION } from '../lib/env.ts';
 import { sha256Hex } from '../assets/image-core.ts';
 import { collectRefs } from './idb-store.ts';
@@ -121,18 +121,27 @@ export async function exportBackup(
 
 type Entries = Record<string, Uint8Array>;
 
-async function unzip(bytes: Uint8Array, maxTotal: number): Promise<Entries> {
+/** Uncompressed bytes one import may expand to, shared by a backup and every draft archive inside it. */
+const MAX_EXPANDED_BYTES = 4 * MAX_IMPORT_BYTES;
+
+async function unzip(bytes: Uint8Array, budget: { left: number }): Promise<Entries> {
   if (bytes.byteLength > MAX_IMPORT_BYTES) throw new ImportError('That file is larger than 50 MB.');
   const { unzipSync } = await fflate();
-  let total = 0;
+  const tooMuch = () => new ImportError('That archive expands to too much data.');
   try {
-    return unzipSync(bytes, {
+    // Declared sizes come from the zip headers, so they are checked first and the real sizes afterwards.
+    const entries = unzipSync(bytes, {
       filter(file) {
-        total += file.originalSize;
-        if (total > maxTotal) throw new ImportError('That archive expands to too much data.');
+        budget.left -= file.originalSize;
+        if (budget.left < 0) throw tooMuch();
         return !file.name.includes('..') && !file.name.startsWith('/');
       },
     });
+    for (const data of Object.values(entries)) {
+      budget.left -= data.byteLength;
+      if (budget.left < 0) throw tooMuch();
+    }
+    return entries;
   } catch (error) {
     if (error instanceof ImportError) throw error;
     throw new ImportError('That file is not a valid HexaData draft or backup.');
@@ -199,6 +208,9 @@ async function importOne(
   const missing = new Set<AssetRef>();
   const isAvailable = (ref: AssetRef) => !ref.startsWith('asset:') || available.has(ref.slice(6));
   for (const ref of collectRefs(content)) if (!isAvailable(ref)) missing.add(ref);
+  // Shipped images this editor does not know would make the PDF engine reject the sheet: treat them as missing.
+  const shown = [...content.partnerLogos.map((logo) => logo.ref), content.productImage ?? ''];
+  for (const ref of shown) if (ref.startsWith('builtin:') && !builtinId(ref)) missing.add(ref);
   if (missing.size > 0) {
     warnings.push(
       `${missing.size} image${missing.size === 1 ? ' was' : 's were'} missing from the file and removed.`,
@@ -238,7 +250,8 @@ export async function importFile(
   store: Pick<DraftStore, 'create' | 'putAsset'>,
   bytes: Uint8Array,
 ): Promise<ImportResult> {
-  const entries = await unzip(bytes, 4 * MAX_IMPORT_BYTES);
+  const budget = { left: MAX_EXPANDED_BYTES };
+  const entries = await unzip(bytes, budget);
   const warnings: string[] = [];
 
   if (entries['manifest.json']) {
@@ -249,7 +262,7 @@ export async function importFile(
     for (const [name, data] of Object.entries(entries)) {
       if (!/^drafts\/[^/]+\.hxspec$/.test(name)) continue;
       try {
-        drafts.push(await importOne(store, await unzip(data, 4 * MAX_IMPORT_BYTES), warnings));
+        drafts.push(await importOne(store, await unzip(data, budget), warnings));
       } catch (error) {
         warnings.push(
           `${name.replace('drafts/', '')}: ${error instanceof Error ? error.message : 'failed'}`,

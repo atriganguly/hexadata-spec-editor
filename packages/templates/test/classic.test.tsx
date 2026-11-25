@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { renderSheetHtml, stripPreloadHints } from '../src/print.tsx';
-import { contrastRatio, DEFAULT_PALETTE, type PaletteKey } from '@hexadata/brand';
+import { ALLOWED_PAIRS, contrastRatio, DEFAULT_PALETTE, type PaletteKey } from '@hexadata/brand';
 import {
   createEmptyContent,
   createPartnerLogo,
@@ -117,6 +117,62 @@ describe('Classic rendering (print mode)', () => {
     expect(html).toContain('cs-td-emphasis');
   });
 
+  it('draws one page of chrome for a one-page sheet, with the footer text on it', async () => {
+    const template = (await loadTemplate('classic'))!;
+    const html = renderSheetHtml(template, { content: template.createDefaults(), urls });
+    expect((html.match(/data-hd-page="/g) ?? []).length).toBe(1);
+    expect(html).toContain('--hd-pages:1');
+    expect(html).toContain('Learn more at: https://www.hexadata.in');
+    expect(html).not.toContain('Specification (continued)');
+    expect(html).not.toContain('hd-page-gap');
+    expect(html).not.toContain('cs-page-tag'); // no page number on a one-page sheet
+  });
+
+  it('continues on a second page: slim header, continued tab, page tag, full footer on the last page only', async () => {
+    const template = (await loadTemplate('classic'))!;
+    const content = template.createDefaults();
+    const breakAt = content.specColumns[0][6]!.id;
+    const html = renderSheetHtml(template, {
+      content,
+      urls,
+      pagination: { pages: 2, spacers: { [breakAt]: 240 } },
+    });
+    expect((html.match(/data-hd-page="/g) ?? []).length).toBe(2);
+    expect(html).toContain('--hd-pages:2');
+    expect(html).toContain('Specification (continued)');
+    expect((html.match(/hd-page-gap/g) ?? []).length).toBe(1);
+    expect(html).toContain('height:240px');
+    // Page 1: slim footer (page number tag, no logo). Last page: the full footer with the logo and the text.
+    expect(html).toContain('Page 01/02');
+    expect((html.match(/cs-page-tag/g) ?? []).length).toBe(1);
+    expect((html.match(/data-hd-fixed="mark"/g) ?? []).length).toBe(1);
+    expect((html.match(/cs-bottom-bar/g) ?? []).length).toBe(2);
+    expect((html.match(/data-hd-fixed="footer"/g) ?? []).length).toBe(1);
+    expect(html.indexOf('cs-page-tag')).toBeLessThan(html.indexOf('data-hd-page="1"'));
+    expect(html.indexOf('data-hd-fixed="footer"')).toBeGreaterThan(
+      html.indexOf('data-hd-page="1"'),
+    );
+    // Every row is still rendered exactly once.
+    for (const row of content.specColumns[0]) {
+      expect(html.split(`data-hd-row="${row.id}"`).length - 1).toBe(1);
+    }
+  });
+
+  it('leaves out the page number tag when the sheet setting is off', async () => {
+    const template = (await loadTemplate('classic'))!;
+    const content = template.createDefaults();
+    content.extras.showPageNumbers = false;
+    const html = renderSheetHtml(template, {
+      content,
+      urls,
+      pagination: { pages: 3, spacers: {} },
+    });
+    expect((html.match(/data-hd-page="/g) ?? []).length).toBe(3);
+    expect(html).not.toContain('cs-page-tag');
+    expect(html).not.toContain('Page 0');
+    expect((html.match(/data-hd-fixed="footer"/g) ?? []).length).toBe(1);
+  });
+
   it('has no editor artefacts', async () => {
     const template = (await loadTemplate('classic'))!;
     const html = await renderSheet(template.createDefaults());
@@ -183,12 +239,8 @@ describe('Classic brand discipline', () => {
   });
 
   it('declares only contrast pairs the brand allows, and they meet their minimum ratio', () => {
-    const allowed = new Set([
-      'obsidian/cyan',
-      'obsidian/white',
-      'deepBlue/white',
-      'midnight/white',
-    ]);
+    // The brand's own list of allowed pairs is the source of truth.
+    const allowed = new Set(ALLOWED_PAIRS.map((pair) => `${pair.fg}/${pair.bg}`));
     for (const pair of getTemplateMeta('classic')!.contrast) {
       expect(allowed.has(`${pair.fg}/${pair.bg}`), `${pair.fg}/${pair.bg}`).toBe(true);
       const ratio = contrastRatio(
@@ -202,7 +254,7 @@ describe('Classic brand discipline', () => {
   it('keeps the original A4 geometry', () => {
     for (const fragment of [
       'width: 210mm',
-      'height: 297mm',
+      'height: calc(var(--hd-pages, 1) * 297mm)',
       'height: 14mm',
       'padding: 0 12mm',
       'font-size: 24pt',

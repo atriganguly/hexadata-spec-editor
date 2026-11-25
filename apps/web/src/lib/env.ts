@@ -1,3 +1,5 @@
+import pkg from '../../package.json';
+
 /**
  * Base URL of the PDF engine, without a trailing slash.
  * - `VITE_API_BASE_URL=https://…` for GitHub Pages / separate hosting,
@@ -13,4 +15,4 @@ function resolveApiBase(): string {
 }
 
 export const API_BASE = resolveApiBase();
-export const APP_VERSION = '2.0.0';
+export const APP_VERSION: string = pkg.version;

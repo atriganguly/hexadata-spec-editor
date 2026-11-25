@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { createRow } from '@hexadata/spec-core';
 import { createContent, richTextOf } from './fixtures.ts';
 import { PDF_AUTHOR, PDF_PRODUCER } from '../src/metadata.ts';
 import { buildApp } from '../src/app.ts';
@@ -98,15 +99,133 @@ describe('POST /v1/render', () => {
     expect((await inspectPdf(new Uint8Array(res.rawPayload))).pages).toBe(1);
   });
 
-  it('keeps one page even when content is huge (overflow is clipped, never a 2nd page)', async () => {
+  it('adds pages as the specification grows, and only as many as needed', async () => {
+    const doc = await defaultDocument();
+    const one = await post(doc);
+    expect(one.statusCode).toBe(200);
+    expect((await inspectPdf(new Uint8Array(one.rawPayload))).pages).toBe(1);
+    expect(one.headers['x-pdf-pages']).toBe('1');
+
+    // Enough rows to need a continuation page (rows move whole; nothing is clipped).
+    for (let i = 0; i < 14; i += 1) {
+      doc.content.specColumns[0].push(createRow(`Extra row ${i + 1}`, 'one\ntwo\nthree'));
+    }
+    const two = await post(doc);
+    expect(two.statusCode).toBe(200);
+    expect(two.headers['x-pdf-pages']).toBe('2');
+    const bytes = new Uint8Array(two.rawPayload);
+    expect((await inspectPdf(bytes)).pages).toBe(2);
+    const first = await pdfText(bytes, 1);
+    const second = await pdfText(bytes, 2);
+    // Rows move whole to page 2 (nothing dropped, nothing duplicated); the footer text sits on the last page only.
+    expect(first).toContain('Extra row 1');
+    expect(second).toMatch(/Extra row\s*14/);
+    expect(second.match(/Extra row/g)?.length).toBeGreaterThan(5);
+    expect(second.toLowerCase()).toContain('continued');
+    expect(first).not.toContain('All specifications are subject to change');
+    // The brand badge is uppercase and letter-spaced, so extracted glyphs may be separated by spaces.
+    expect(first.replace(/\s+/g, '')).toContain('PAGE01/02');
+    expect(second.replace(/\s+/g, '')).not.toContain('PAGE0');
+    expect(second).toContain('All specifications are subject to change');
+
+    // Remove the rows again: back to a single page, no blank page left behind.
+    doc.content.specColumns[0].length = doc.content.specColumns[0].length - 14;
+    const back = await post(doc);
+    expect((await inspectPdf(new Uint8Array(back.rawPayload))).pages).toBe(1);
+  });
+
+  it('draws no page numbers when the sheet setting is off', async () => {
+    const doc = await defaultDocument();
+    for (let i = 0; i < 14; i += 1) {
+      doc.content.specColumns[0].push(createRow(`Extra row ${i + 1}`, 'one\ntwo\nthree'));
+    }
+    const withNumbers = await post(doc);
+    expect(withNumbers.headers['x-pdf-pages']).toBe('2');
+    expect(
+      (await pdfText(new Uint8Array(withNumbers.rawPayload), 1)).replace(/\s+/g, ''),
+    ).toContain('PAGE01/02');
+
+    doc.content.extras.showPageNumbers = false;
+    const without = await post(doc);
+    expect(without.statusCode).toBe(200);
+    const text = (await pdfText(new Uint8Array(without.rawPayload), 1)).replace(/\s+/g, '');
+    expect(text).not.toContain('PAGE01');
+  });
+
+  it('answers /v1/layout with the same page breaks the export uses', async () => {
+    const layout = (doc: object) =>
+      app.inject({
+        method: 'POST',
+        url: '/v1/layout',
+        payload: JSON.stringify(doc),
+        headers: { 'content-type': 'application/json' },
+      });
+
+    const doc = await defaultDocument();
+    const one = await layout(doc);
+    expect(one.statusCode).toBe(200);
+    expect(one.json()).toEqual({ pages: 1, spacers: {}, overflow: false });
+
+    for (let i = 0; i < 14; i += 1) {
+      doc.content.specColumns[0].push(createRow(`Extra row ${i + 1}`, 'one\ntwo\nthree'));
+    }
+    const two = await layout(doc);
+    expect(two.statusCode).toBe(200);
+    const result = two.json() as { pages: number; spacers: Record<string, number> };
+    expect(result.pages).toBe(2);
+    const [breakId] = Object.keys(result.spacers);
+    expect(breakId).toBeDefined();
+
+    // The export starts page 2 at exactly that row.
+    const pdf = await post(doc);
+    const bytes = new Uint8Array(pdf.rawPayload);
+    expect(pdf.headers['x-pdf-pages']).toBe('2');
+    const label = doc.content.specColumns[0].find((row) => row.id === breakId)!.label[0]![0]!.t;
+    const norm = (text: string) => text.replace(/\s+/g, '');
+    expect(norm(await pdfText(bytes, 2))).toContain(norm(label));
+    expect(norm(await pdfText(bytes, 1))).not.toContain(norm(label));
+  });
+
+  it('lays out sheets that reference uploaded images without receiving them', async () => {
+    const doc = await defaultDocument();
+    doc.content.productImage = `asset:${'a'.repeat(64)}`;
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/layout',
+      payload: JSON.stringify(doc),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().pages).toBe(1);
+    // The export still insists on the real image.
+    expect((await post(doc)).statusCode).toBe(422);
+  });
+
+  it('reports /v1/layout overflow instead of refusing it', async () => {
+    const doc = await defaultDocument();
+    const longText = richTextOf('line\n'.repeat(55));
+    doc.content.specColumns[0].forEach((row) => {
+      row.value = longText;
+    });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/v1/layout',
+      payload: JSON.stringify(doc),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().overflow).toBe(true);
+  });
+
+  it('refuses sheets that would need more pages than the limit', async () => {
     const doc = await defaultDocument();
     const longText = richTextOf('line\n'.repeat(55));
     doc.content.specColumns[0].forEach((row) => {
       row.value = longText;
     });
     const res = await post(doc);
-    expect(res.statusCode).toBe(200);
-    expect((await inspectPdf(new Uint8Array(res.rawPayload))).pages).toBe(1);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('TOO_MANY_PAGES');
   });
 
   it('renders hostile text as literal text and makes no outbound request', async () => {

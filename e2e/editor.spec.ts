@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { PDFDocument } from 'pdf-lib';
 import { expect, test } from '@playwright/test';
 import {
   cell,
@@ -5,6 +7,7 @@ import {
   logoItems,
   openApp,
   openMenu,
+  pressThenType,
   redoButton,
   replaceText,
   rowItems,
@@ -50,8 +53,7 @@ test.describe('editor', () => {
     const first = featureItems(page).first().locator('[data-cell]');
     await first.click();
     await page.keyboard.press('End');
-    await page.keyboard.press('Enter');
-    await page.keyboard.type('Inserted feature');
+    await pressThenType(page, 'Enter', 'Inserted feature');
     await expect(featureItems(page)).toHaveCount(11);
     await expect(featureItems(page).nth(1)).toContainText('Inserted feature');
 
@@ -207,19 +209,82 @@ test.describe('editor', () => {
     await expect(page.getByRole('button', { name: /Zoom \d+ percent/ })).toBeVisible();
   });
 
-  test('flags content that collides with the footer and lets the user decide', async ({ page }) => {
+  test('a growing specification continues on a new page, and the page goes away again', async ({
+    page,
+  }) => {
     await openApp(page);
-    // Keep adding rows with the keyboard (Ctrl+Enter) until the table runs into the footer.
+    const pages = page.locator('.hd-page');
+    await expect(pages).toHaveCount(1);
+    await expect(page.locator('.page-break')).toHaveCount(0);
+
+    // Keep adding rows with the keyboard (Ctrl+Enter); typing continues in the new row even when it crosses a page.
     await rowItems(page, 1).last().locator('[data-cell]').first().click();
     for (let i = 0; i < 12; i += 1) {
-      await page.keyboard.press('Control+Enter');
-      await page.keyboard.type(`Extra row ${i}`);
+      await pressThenType(page, 'Control+Enter', `Extra row ${i}`);
     }
-    await expect(page.getByText(/overlaps the footer|runs past the bottom/).first()).toBeVisible();
+    await expect(pages).toHaveCount(2);
+    await expect(page.locator('.page-break')).toHaveCount(1);
+    await expect(page.getByText('Specification (continued)')).toBeVisible();
+    // The last row typed is in the table (rows are never dropped or duplicated), and it kept the caret.
+    await expect(page.getByText('Extra row 11')).toHaveCount(1);
+    await expect(rowItems(page, 1)).toHaveCount(22);
+    // Footer text exists once, on the last page, and is the one editable copy.
+    await expect(page.locator('[data-cell="field:footer.copyright"]')).toHaveCount(1);
+    await expect(page.locator('.panel--inspector')).toContainText('continues over 2 pages');
+
+    // Removing the rows again removes the extra page (no blank page left behind).
+    for (let i = 0; i < 40 && (await rowItems(page, 1).count()) > 10; i += 1) {
+      await undoButton(page).click();
+    }
+    await expect(rowItems(page, 1)).toHaveCount(10);
+    await expect(pages).toHaveCount(1);
+    await expect(page.locator('.page-break')).toHaveCount(0);
+    await expect(page.locator('.panel--inspector')).toContainText('Everything fits on the page');
+  });
+
+  test('a multi-page draft reopens with its pages after a reload', async ({ page }) => {
+    await openApp(page);
+    await rowItems(page, 1).last().locator('[data-cell]').first().click();
+    for (let i = 0; i < 12; i += 1) {
+      await pressThenType(page, 'Control+Enter', `Extra row ${i}`);
+    }
+    await expect(page.locator('.hd-page')).toHaveCount(2);
+    await saveNow(page);
+    await page.reload();
+    await expect(titleCell(page)).toBeVisible();
+    await expect(rowItems(page, 1)).toHaveCount(22);
+    await expect(page.locator('.hd-page')).toHaveCount(2);
+    await expect(page.locator('.page-break')).toHaveCount(1);
+  });
+
+  test('page numbers can be switched off, for the editor and the PDF', async ({ page }) => {
+    await openApp(page);
+    await rowItems(page, 1).last().locator('[data-cell]').first().click();
+    for (let i = 0; i < 12; i += 1) {
+      await pressThenType(page, 'Control+Enter', `Extra row ${i}`);
+    }
+    await expect(page.locator('.hd-page')).toHaveCount(2);
+    await expect(page.locator('.cs-page-tag')).toHaveText(/PAGE 01\/02/i);
+    // The reading of the visible text is uppercase through CSS; the toggle lives in the Inspector.
+    const toggle = page.getByRole('switch', { name: 'Show page numbers' });
+    await expect(toggle).toBeChecked();
+    await toggle.uncheck();
+    await expect(page.locator('.cs-page-tag')).toHaveCount(0);
+    await expect(page.locator('.hd-page')).toHaveCount(2);
+    await toggle.check();
+    await expect(page.locator('.cs-page-tag')).toHaveCount(1);
+  });
+
+  test('exports as many pages as the editor shows', async ({ page }) => {
+    await openApp(page);
+    await rowItems(page, 1).last().locator('[data-cell]').first().click();
+    for (let i = 0; i < 12; i += 1) {
+      await pressThenType(page, 'Control+Enter', `Extra row ${i}`);
+    }
+    await expect(page.locator('.hd-page')).toHaveCount(2);
+    const downloadPromise = page.waitForEvent('download');
     await page.getByRole('button', { name: /Export PDF/ }).click();
-    const dialog = page.getByRole('dialog', { name: /layout problems/ });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: 'Go back and fix' }).click();
-    await expect(dialog).toBeHidden();
+    const bytes = await readFile(await (await downloadPromise).path());
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
   });
 });

@@ -26,6 +26,8 @@ export interface PoolOptions {
 export class BrowserPool {
   private browser: Browser | undefined;
   private launching: Promise<Browser> | undefined;
+  /** Renders currently running on each browser (a retired browser stays open until this reaches zero). */
+  private readonly inFlight = new Map<Browser, number>();
   private active = 0;
   private rendersSinceLaunch = 0;
   private closed = false;
@@ -59,11 +61,20 @@ export class BrowserPool {
     await this.acquire();
     try {
       const browser = await this.getBrowser();
-      const context = await browser.createBrowserContext();
+      this.inFlight.set(browser, (this.inFlight.get(browser) ?? 0) + 1);
       try {
-        return await task(context);
+        const context = await browser.createBrowserContext();
+        try {
+          return await task(context);
+        } finally {
+          await context.close().catch(() => undefined);
+        }
       } finally {
-        await context.close().catch(() => undefined);
+        const left = (this.inFlight.get(browser) ?? 1) - 1;
+        if (left > 0) this.inFlight.set(browser, left);
+        else this.inFlight.delete(browser);
+        // A browser retired by `recycle()` closes as soon as its last render is done.
+        if (left === 0 && browser !== this.browser) void browser.close().catch(() => undefined);
       }
     } finally {
       this.release();
@@ -94,21 +105,24 @@ export class BrowserPool {
 
   private release(): void {
     this.rendersSinceLaunch += 1;
+    // Recycle even while renders are queued: new renders start on a fresh browser, the old one drains.
+    if (this.rendersSinceLaunch >= this.options.recycleAfter) this.recycle();
     const next = this.waiters.shift();
     if (next) {
       next.resolve(); // hand the slot over: `active` stays the same
       return;
     }
     this.active -= 1;
-    if (this.active === 0 && this.rendersSinceLaunch >= this.options.recycleAfter) this.recycle();
   }
 
+  /** Retires the current browser. Renders still running on it finish; it closes when the last one is done. */
   private recycle(): void {
     const browser = this.browser;
     this.browser = undefined;
     this.rendersSinceLaunch = 0;
+    if (!browser) return;
     this.options.log?.info('Recycling browser');
-    void browser?.close().catch(() => undefined);
+    if (!this.inFlight.has(browser)) void browser.close().catch(() => undefined);
   }
 
   private async getBrowser(): Promise<Browser> {

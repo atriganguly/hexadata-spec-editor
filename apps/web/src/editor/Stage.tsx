@@ -11,7 +11,8 @@ import { useSession } from '../drafts/session.ts';
 import { useDoc } from '../store/doc.ts';
 import { clampZoom, useUi, type Selection } from '../store/ui.ts';
 import { applyImageFile, chooseAndApplyImage } from './imageActions.ts';
-import { measureOverflow } from './overflow.ts';
+import { measureSheet } from './layout.ts';
+import { detectLayoutScale } from './scale-css.ts';
 import { Overlay, targetsFrom, useHoverTracking } from './Overlay.tsx';
 import { Sheet } from './Sheet.tsx';
 import { ZoomControls } from './ZoomControls.tsx';
@@ -32,6 +33,9 @@ export function Stage({ template }: { template: LoadedTemplate }): ReactElement 
   const { hover, onPointerOver, onPointerLeave, keepAlive } = useHoverTracking();
 
   const pageWidth = template.page.widthMm * MM_TO_PX;
+  const pages = useUi((state) => state.layout.pages);
+  // 1 normally; 4 in a browser that enforces a minimum font size (see scale-css.ts).
+  const layoutScale = detectLayoutScale();
   const pageHeight = template.page.heightMm * MM_TO_PX;
 
   // Fit modes follow the stage size.
@@ -76,27 +80,40 @@ export function Stage({ template }: { template: LoadedTemplate }): ReactElement 
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Layout problems (content colliding with the footer, running off the page).
+  // Page breaks and layout problems. Re-measured whenever something that changes row heights or the table position
+  // may have happened: content edits, a resize, fonts finishing to load, images loading, a table growing or shrinking.
   const [layoutTick, setLayoutTick] = useState(0);
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
     let raf = 0;
+    const observer = new ResizeObserver(() => run());
     const run = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        useUi.getState().setIssues(measureOverflow(frame));
+        // The PDF engine's answer for this very content wins over the local estimate (see useEngineLayout).
+        const doc = useDoc.getState();
+        const engine = useUi.getState().engine;
+        const engineIsCurrent =
+          engine?.content === doc.content &&
+          engine.templateId === doc.templateId &&
+          engine.templateVersion === doc.templateVersion;
+        const layout = engineIsCurrent ? engine.layout : measureSheet(frame, template, content);
+        if (layout) useUi.getState().setLayout(layout);
+        frame.querySelectorAll('[data-hd-flow]').forEach((flow) => observer.observe(flow));
         setLayoutTick((tick) => tick + 1);
       });
     };
     run();
-    const observer = new ResizeObserver(run);
     observer.observe(frame);
-    // Fonts finishing to load change text metrics.
+    document.fonts?.addEventListener('loadingdone', run);
+    frame.addEventListener('load', run, true); // images (do not bubble: capture)
     void document.fonts?.ready.then(run);
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      document.fonts?.removeEventListener('loadingdone', run);
+      frame.removeEventListener('load', run, true);
     };
   }, [content, template]);
 
@@ -178,7 +195,7 @@ export function Stage({ template }: { template: LoadedTemplate }): ReactElement 
           // Event delegation container only; every editable part inside is a real, focusable control.
           role="presentation"
           data-readonly={readOnly}
-          style={{ width: pageWidth * factor, height: pageHeight * factor }}
+          style={{ width: pageWidth * factor, height: pageHeight * pages * factor }}
           onPointerOver={onPointerOver}
           onPointerLeave={onPointerLeave}
           onClick={onClick}
@@ -186,10 +203,24 @@ export function Stage({ template }: { template: LoadedTemplate }): ReactElement 
         >
           <div
             className="sheet-scale"
-            style={{ width: pageWidth, height: pageHeight, transform: `scale(${factor})` }}
+            // Laid out `layoutScale` times larger and scaled back (see scale-css.ts); `--lz` keeps editing chrome crisp.
+            style={{
+              width: pageWidth * layoutScale,
+              height: pageHeight * pages * layoutScale,
+              transform: `scale(${factor / layoutScale})`,
+              ['--lz' as string]: layoutScale,
+            }}
           >
             <Sheet template={template} />
           </div>
+          {Array.from({ length: pages - 1 }, (_, i) => (
+            <div
+              key={i}
+              className="page-break"
+              aria-hidden="true"
+              style={{ top: pageHeight * (i + 1) * factor }}
+            />
+          ))}
           {readOnly ? null : (
             <Overlay
               frameRef={frameRef}

@@ -51,7 +51,7 @@ const FASTIFY_ERROR_MAP: Record<string, { status: number; code: ErrorCode; messa
   FST_REQ_FILE_TOO_LARGE: {
     status: 413,
     code: 'PAYLOAD_TOO_LARGE',
-    message: 'An image is larger than 5 MB.',
+    message: `An image is larger than ${REQUEST_LIMITS.fileBytes / (1024 * 1024)} MB.`,
   },
   FST_FILES_LIMIT: { status: 413, code: 'PAYLOAD_TOO_LARGE', message: 'Too many images.' },
   FST_FIELDS_LIMIT: { status: 413, code: 'PAYLOAD_TOO_LARGE', message: 'Too many fields.' },
@@ -233,6 +233,28 @@ export async function buildApp(config: Config): Promise<AppParts> {
         .header('Cache-Control', 'no-store')
         .header('X-Pdf-Pages', String(result.pagesRendered))
         .send(Buffer.from(result.pdf));
+    },
+  );
+
+  /* ---------- Layout ---------- */
+
+  // The engine is the single authority for page breaks: the editor asks it where the rows break, and an export of
+  // the same document uses the very same measurement, so the PDF always matches what the editor shows.
+  app.post(
+    '/v1/layout',
+    {
+      config: {
+        rateLimit: { max: config.rateLimitMax * 4, timeWindow: config.rateLimitWindowMs },
+      },
+    },
+    async (req, reply) => {
+      const request = await readRenderRequest(req);
+      const result = await renderPdf(pool, assets, request, {
+        timeoutMs: config.renderTimeoutMs,
+        layoutOnly: true,
+        log: { warn: (obj, msg) => req.log.warn(obj, msg) },
+      });
+      return reply.header('Cache-Control', 'no-store').send(result.layout);
     },
   );
 

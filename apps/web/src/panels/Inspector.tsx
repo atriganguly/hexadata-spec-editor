@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { LIMITS } from '@hexadata/spec-core';
-import { getTemplateMeta } from '@hexadata/spec-templates';
+import { getTemplateMeta, pageNumbersShown, SHOW_PAGE_NUMBERS_KEY } from '@hexadata/spec-templates';
 import { useSession } from '../drafts/session.ts';
 import { runFormat } from '../editor/FormatToolbar.tsx';
 import { chooseAndApplyImage } from '../editor/imageActions.ts';
@@ -247,6 +247,7 @@ export function Inspector(): ReactElement {
   const templateId = useDoc((state) => state.templateId);
   const templateVersion = useDoc((state) => state.templateVersion);
   const content = useDoc((state) => state.content);
+  const pages = useUi((state) => state.layout.pages);
   const readOnly = useSession((state) => state.readOnly);
   const cellFocused = useCellFocused();
   const meta = templateId ? getTemplateMeta(templateId, templateVersion) : undefined;
@@ -300,11 +301,35 @@ export function Inspector(): ReactElement {
           </p>
         </Section>
 
+        <Section title="Pages">
+          <label className="hd-choice">
+            <input
+              type="checkbox"
+              role="switch"
+              className="hd-switch"
+              checked={pageNumbersShown(content)}
+              disabled={readOnly}
+              onChange={(event) =>
+                useDoc.getState().setExtra(SHOW_PAGE_NUMBERS_KEY, event.target.checked)
+              }
+            />
+            <span>Show page numbers</span>
+          </label>
+          <p className="hd-help" style={{ margin: 0 }}>
+            A tag like PAGE 01/04 on every page but the last, in the editor and the PDF. It only
+            appears once the sheet has more than one page.
+          </p>
+        </Section>
+
         <Section title="Sheet checks">
           {issues.length === 0 ? (
             <p className="issue" style={{ borderColor: 'var(--hd-border-subtle)' }} role="status">
               <IconCheck />
-              <span>Everything fits on the page.</span>
+              <span>
+                {pages === 1
+                  ? 'Everything fits on the page.'
+                  : `The sheet continues over ${pages} pages.`}
+              </span>
             </p>
           ) : (
             <div
@@ -319,8 +344,7 @@ export function Inspector(): ReactElement {
                 </p>
               ))}
               <p className="hd-help" style={{ margin: 0 }}>
-                Shorten the highlighted content or remove a row. Overflowing content is clipped in
-                the PDF.
+                Shorten the text or remove rows to bring the sheet back within the page limit.
               </p>
             </div>
           )}
@@ -336,6 +360,10 @@ export function Inspector(): ReactElement {
               gap: '0.25rem 0.75rem',
             }}
           >
+            <dt>Pages</dt>
+            <dd style={{ margin: 0 }}>
+              {pages} / {LIMITS.maxPages}
+            </dd>
             <dt>Features</dt>
             <dd style={{ margin: 0 }}>
               {content.keyFeatures.length} / {LIMITS.keyFeatures}

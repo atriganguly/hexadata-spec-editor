@@ -11,18 +11,21 @@ export const PDF_PRODUCER = 'HexaData Spec Editor';
 
 /**
  * Chrome's own PDF has no usable metadata (Producer "Skia/PDF", empty Title). This writes real document
- * properties and enforces the single-page A4 lock: extra pages are dropped.
+ * properties and enforces the page count the layout asked for (`expectedPages`): stray extra pages, such as a
+ * blank trailing page from rounding, are dropped; fewer pages than expected is an error.
  *
  * Object streams are disabled so the file stays simple to inspect and diff (font names, metadata).
  */
 export async function finalizePdf(
   bytes: Uint8Array,
   meta: PdfMetadata,
+  expectedPages = 1,
 ): Promise<{ pdf: Uint8Array; pages: number; droppedPages: number }> {
   const doc = await PDFDocument.load(bytes, { updateMetadata: false });
   const found = doc.getPageCount();
   let dropped = 0;
-  while (doc.getPageCount() > 1) {
+  if (found < expectedPages) throw new Error(`Expected ${expectedPages} pages, got ${found}.`);
+  while (doc.getPageCount() > expectedPages) {
     doc.removePage(doc.getPageCount() - 1);
     dropped += 1;
   }

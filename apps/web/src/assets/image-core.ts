@@ -27,6 +27,7 @@ export class ImageRejected extends Error {
 export const STORED_DPI = IMAGE_LIMITS.targetDpi * 2;
 export const THUMB_EDGE = 96;
 const MM_PER_INCH = 25.4;
+const MB = 1024 * 1024;
 const MAX_SOURCE_PIXELS = 200_000_000;
 
 /** Pixel size to downscale to: fits inside the slot at STORED_DPI, never enlarges, capped at maxEdgePx. */
@@ -55,7 +56,7 @@ export function checkSource(file: Blob): void {
     throw new ImageRejected('SVG images are not supported. Use PNG, JPEG or WebP.');
   if (file.size === 0) throw new ImageRejected('The file is empty.');
   if (file.size > IMAGE_LIMITS.inputBytes) {
-    throw new ImageRejected('The image is larger than 25 MB.');
+    throw new ImageRejected(`The image is larger than ${IMAGE_LIMITS.inputBytes / MB} MB.`);
   }
 }
 

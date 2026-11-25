@@ -103,12 +103,6 @@ export default defineConfig(({ mode }) => {
       target: 'es2023',
       sourcemap: true,
       chunkSizeWarningLimit: 400,
-      rollupOptions: {
-        output: {
-          // Keep the editor shell small; heavy, rarely-used code loads on demand.
-          manualChunks: undefined,
-        },
-      },
     },
     server: { port: 5173, strictPort: true },
     preview: { port: 4173, strictPort: true },

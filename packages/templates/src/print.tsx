@@ -65,7 +65,8 @@ export function renderPrintDocument(options: PrintDocumentOptions): string {
   const { Component } = template;
   const pageCss =
     `@page{size:${page.widthMm}mm ${page.heightMm}mm;margin:0}` +
-    `html,body{margin:0;padding:0;width:${page.widthMm}mm;height:${page.heightMm}mm;overflow:hidden;background:transparent}`;
+    // The sheet itself is `pages x page height` tall and clips its own overflow, so the document is exactly that tall.
+    `html,body{margin:0;padding:0;width:${page.widthMm}mm;background:transparent}`;
   const html = renderToStaticMarkup(
     <html lang="en">
       <head>
